@@ -4,7 +4,6 @@
  * ============================================================================
  * - FIXED: Double headers removed via 'headerShown: false' at the Root level.
  * - FIXED: Bottom Navigation Bar completely removed on Desktop.
- * - ADDED: 'Logs' tab for real-time Firecrawl-style activity streaming.
  * - DESIGN: Flat, professional 5-icon bar (Mobile) / Fixed Sidebar (Desktop).
  * ============================================================================
  */
