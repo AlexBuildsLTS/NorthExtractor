@@ -86,7 +86,7 @@ export default function AdaptiveLayout() {
 
           <TouchableOpacity onPress={logout} style={styles.sideLogout}>
             <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>TERMINATE</Text>
+            <Text style={styles.logoutText}>SIGN OUT</Text>
           </TouchableOpacity>
         </View>
         <View style={{ flex: 1 }}>

@@ -140,7 +140,7 @@ export const MainHeader = ({ title }: { title: string }) => {
               >
                 <LogOut size={18} color="#EF4444" />
                 <Text style={[styles.menuText, { color: '#EF4444' }]}>
-                  Terminate Session
+                 Sign Out
                 </Text>
               </TouchableOpacity>
             </View>
