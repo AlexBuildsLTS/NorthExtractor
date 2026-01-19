@@ -1,0 +1,24 @@
+# FILE: supabase/config.toml
+# PURPOSE: Final corrected configuration for Supabase CLI 2.x
+# DESCRIPTION: Defines per-function settings to resolve "expected map or struct" errors.
+
+project_id = "vrhjfdwbvharntnyevvq"
+
+[api]
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+
+[functions.scrape-engine]
+# Per-function configuration
+verify_jwt = false
+import_map = "./functions/import_map.json"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[storage]
+enabled = true
