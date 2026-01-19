@@ -130,22 +130,58 @@ export type Database = {
           avatar_url: string | null;
           full_name: string | null;
           id: string;
+          proxy_config: Json | null;
           role: Database['public']['Enums']['user_role'] | null;
           updated_at: string | null;
+          webhook_url: string | null;
         };
         Insert: {
           avatar_url?: string | null;
           full_name?: string | null;
           id: string;
+          proxy_config?: Json | null;
           role?: Database['public']['Enums']['user_role'] | null;
           updated_at?: string | null;
+          webhook_url?: string | null;
         };
         Update: {
           avatar_url?: string | null;
           full_name?: string | null;
           id?: string;
+          proxy_config?: Json | null;
           role?: Database['public']['Enums']['user_role'] | null;
           updated_at?: string | null;
+          webhook_url?: string | null;
+        };
+        Relationships: [];
+      };
+      proxy_nodes: {
+        Row: {
+          created_at: string | null;
+          host: string;
+          id: string;
+          port: number;
+          protocol: string | null;
+          status: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string | null;
+          host: string;
+          id?: string;
+          port: number;
+          protocol?: string | null;
+          status?: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string | null;
+          host?: string;
+          id?: string;
+          port?: number;
+          protocol?: string | null;
+          status?: string | null;
+          user_id?: string;
         };
         Relationships: [];
       };
@@ -226,6 +262,7 @@ export type Database = {
           level: string | null;
           message: string;
           metadata: Json | null;
+          scraper_id: string | null;
           user_id: string | null;
         };
         Insert: {
@@ -235,6 +272,7 @@ export type Database = {
           level?: string | null;
           message: string;
           metadata?: Json | null;
+          scraper_id?: string | null;
           user_id?: string | null;
         };
         Update: {
@@ -244,6 +282,7 @@ export type Database = {
           level?: string | null;
           message?: string;
           metadata?: Json | null;
+          scraper_id?: string | null;
           user_id?: string | null;
         };
         Relationships: [
@@ -254,7 +293,41 @@ export type Database = {
             referencedRelation: 'scraping_jobs';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'scraping_logs_scraper_id_fkey';
+            columns: ['scraper_id'];
+            isOneToOne: false;
+            referencedRelation: 'scrapers';
+            referencedColumns: ['id'];
+          },
         ];
+      };
+      webhook_endpoints: {
+        Row: {
+          created_at: string | null;
+          id: string;
+          is_active: boolean | null;
+          secret_key: string | null;
+          target_url: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string | null;
+          id?: string;
+          is_active?: boolean | null;
+          secret_key?: string | null;
+          target_url: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string | null;
+          id?: string;
+          is_active?: boolean | null;
+          secret_key?: string | null;
+          target_url?: string;
+          user_id?: string;
+        };
+        Relationships: [];
       };
     };
     Views: {

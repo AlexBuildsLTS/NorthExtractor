@@ -1,85 +1,134 @@
 /**
- * PROJECT CRADLE: SECURITY SETTINGS V5.0
- * Path: app/(tabs)/settings/security.tsx
+ * ============================================================================
+ * 🔐 NORTH INTELLIGENCE OS: SECURITY VAULT V12.0
+ * ============================================================================
+ * FEATURES:
+ * - ENCRYPTION ROTATION: Updates password hash in Supabase Auth.
+ * - SESSION PURGE: Terminates active session nodes via AuthContext.
+ * - AAA GEOMETRY: 32px hyper-rounded modules with status-reactive tinting.
+ * ============================================================================
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, Fingerprint, Key, ShieldCheck, Smartphone } from 'lucide-react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, StyleSheet, ActivityIndicator } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { ShieldCheck, Lock, LogOut, Key, ArrowLeft, RefreshCw } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// UI INTERNAL IMPORTS
+import { MainHeader } from '@/components/ui/MainHeader';
+import { GlassCard } from '@/components/ui/GlassCard';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 
-export default function SecurityScreen() {
+export default function SecurityVault() {
   const router = useRouter();
-  const { user, logout } = useAuth();
-  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
-  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const { logout } = useAuth();
+  const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      setBiometricsAvailable(hasHardware && isEnrolled);
-    })();
-  }, []);
+  const handlePasswordUpdate = async () => {
+    if (newPassword.length < 8) {
+      return Alert.alert("Security Fault", "Encryption key requires 8+ characters.");
+    }
 
-  const handlePasswordReset = async () => {
-    if (!user?.email) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: 'northfinance://reset-password',
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      Alert.alert('Email Sent', 'Check your inbox for secure reset instructions.');
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
+      
+      setNewPassword('');
+      Alert.alert("Vault Locked", "Your primary encryption hash has been rotated.");
+    } catch (e: any) {
+      Alert.alert("Rotation Failure", e.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0A192F]">
-      <View className="flex-row items-center px-6 py-4 border-b border-white/5">
-        <TouchableOpacity onPress={() => router.back()} className="mr-4 p-2"><ArrowLeft size={24} color="#8892B0" /></TouchableOpacity>
-        <Text className="text-white text-2xl font-bold uppercase italic">Security</Text>
-      </View>
+    <View style={styles.root}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={['#020617', '#0A101F', '#020617']} style={StyleSheet.absoluteFill} />
+      <MainHeader title="Security Core" />
 
-      <ScrollView className="flex-1 p-6">
-        <View className="mb-8">
-          <Text className="text-[#4FD1C7] font-black text-xs uppercase mb-4 tracking-[4px]">Authentication</Text>
-          <View className="bg-[#112240] rounded-[32px] border border-white/5 overflow-hidden">
-            <View className="p-6 flex-row items-center justify-between border-b border-white/5">
-              <View className="flex-row items-center flex-1 mr-4">
-                <View className="w-10 h-10 rounded-full bg-[#4FD1C7]/10 items-center justify-center mr-3"><Fingerprint size={20} color="#4FD1C7" /></View>
-                <View><Text className="text-white font-bold text-base">Biometric Login</Text><Text className="text-[#8892B0] text-xs mt-0.5">Secure Enclave Access</Text></View>
-              </View>
-              {biometricsAvailable && <Switch value={biometricsEnabled} onValueChange={setBiometricsEnabled} trackColor={{ false: '#0A192F', true: '#4FD1C7' }} />}
-            </View>
+      <ScrollView contentContainerStyle={styles.scrollArea} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.replace('/(tabs)/settings')} style={styles.backBtn}>
+          <ArrowLeft size={16} color="#4FD1C7" />
+          <Text style={styles.backText}>RETURN_TO_VAULT</Text>
+        </TouchableOpacity>
 
-            <TouchableOpacity onPress={handlePasswordReset} disabled={loading} className="p-6 flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 rounded-full bg-orange-500/10 items-center justify-center mr-3"><Key size={20} color="#F97316" /></View>
-                <View><Text className="text-white font-bold text-base">Master Token</Text><Text className="text-[#8892B0] text-xs mt-0.5">Reset secure session credentials</Text></View>
-              </View>
-              <ActivityIndicator animating={loading} color="#4FD1C7" />
-            </TouchableOpacity>
+        <GlassCard style={styles.card}>
+          <View style={styles.headerRow}>
+            <Key size={20} color="#4FD1C7" />
+            <Text style={styles.title}>ROTATION_LOGIC</Text>
           </View>
-        </View>
+          
+          <Text style={styles.label}>NEW_ENCRYPTION_KEY</Text>
+          <View style={styles.inputWrapper}>
+             <Lock size={18} color="#475569" />
+             <TextInput
+                style={styles.input}
+                secureTextEntry
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="••••••••••••"
+                placeholderTextColor="#334155"
+              />
+          </View>
 
-        <View className="p-6 bg-[#4FD1C7]/5 rounded-[32px] border border-[#4FD1C7]/20 flex-row items-start">
-            <ShieldCheck size={20} color="#4FD1C7" className="mt-0.5" />
-            <View className="ml-3 flex-1">
-                <Text className="text-[#4FD1C7] font-black mb-1">Status: SECURE</Text>
-                <Text className="text-[#8892B0] text-xs leading-5">Your connection is encrypted via TLS 1.3. Biometric keys remain in the device's Secure Enclave.</Text>
-            </View>
-        </View>
+          <TouchableOpacity 
+            style={styles.actionBtn} 
+            onPress={handlePasswordUpdate} 
+            disabled={loading}
+          >
+            <LinearGradient colors={['#4FD1C7', '#38B2AC']} style={styles.btnGradient}>
+              {loading ? <ActivityIndicator color="#020617" /> : (
+                <>
+                  <RefreshCw size={18} color="#020617" />
+                  <Text style={styles.btnText}>ROTATE_SECURITY_HASH</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </GlassCard>
+
+        <GlassCard style={[styles.card, styles.dangerCard]}>
+          <View style={styles.headerRow}>
+            <ShieldCheck size={20} color="#EF4444" />
+            <Text style={[styles.title, { color: '#EF4444' }]}>SENSITIVE_ACTIONS</Text>
+          </View>
+          
+          <Text style={styles.description}>
+            Force immediate termination of current session node and purge local biometric cache.
+          </Text>
+
+          <TouchableOpacity style={styles.dangerBtn} onPress={logout}>
+            <LogOut size={18} color="#EF4444" />
+            <Text style={styles.dangerBtnText}>TERMINATE_SESSION</Text>
+          </TouchableOpacity>
+        </GlassCard>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#020617' },
+  scrollArea: { padding: 32, paddingBottom: 100 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 32 },
+  backText: { color: '#4FD1C7', fontSize: 10, fontWeight: '900', marginLeft: 12, letterSpacing: 2 },
+  card: { padding: 32, borderRadius: 32, marginBottom: 24 },
+  dangerCard: { borderColor: 'rgba(239, 68, 68, 0.2)', borderWidth: 1, borderRadius: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 32, gap: 16 },
+  title: { color: '#4FD1C7', fontSize: 12, fontWeight: '900', letterSpacing: 3 },
+  label: { color: '#475569', fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 16, marginLeft: 4 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.02)', paddingHorizontal: 20, paddingVertical: 18, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', marginBottom: 24 },
+  input: { flex: 1, marginLeft: 16, color: 'white', fontSize: 18, fontWeight: '600' },
+  actionBtn: { borderRadius: 20, overflow: 'hidden' },
+  btnGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, gap: 12 },
+  btnText: { color: '#020617', fontWeight: '900', fontSize: 13, letterSpacing: 1.5 },
+  description: { color: '#64748B', fontSize: 13, lineHeight: 22, marginBottom: 32 },
+  dangerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, borderRadius: 20, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)' },
+  dangerBtnText: { color: '#EF4444', fontWeight: '900', fontSize: 13, letterSpacing: 1.5, marginLeft: 12 }
+});
