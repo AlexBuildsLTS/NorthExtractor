@@ -1,4 +1,4 @@
-# ApexScrape: AI-Powered Intelligence Hub
+# NorthScrape: AI-Powered Intelligence Hub
 
 <div align="center">
 
@@ -13,7 +13,7 @@
 
 ## 🌟 The Future of Web Intelligence
 
-**ApexScrape** is an enterprise-grade data extraction and synthesis platform that transforms the unstructured web into actionable intelligence. By combining **Google Gemini AI** with a high-performance **Supabase Edge** infrastructure, ApexScrape enables users to build, deploy, and monitor complex web scraping pipelines directly from a mobile interface.
+**NorthScrape** is an enterprise-grade data extraction and synthesis platform that transforms the unstructured web into actionable intelligence. By combining **Google Gemini AI** with a high-performance **Supabase Edge** infrastructure, NorthScrape enables users to build, deploy, and monitor complex web scraping pipelines directly from a mobile interface.
 
 The application leverages the "Apex Logic" architecture to provide seamless data harvesting:
 
@@ -27,21 +27,25 @@ The application leverages the "Apex Logic" architecture to provide seamless data
 ## ✨ Enterprise-Grade Features
 
 ### 🤖 **Cognitive Extraction (Gemini AI)**
+
 - **Semantic Parsing**: No more broken CSS selectors. Gemini identifies data points (prices, titles, stock levels) based on context and visual hierarchy.
 - **Insight Generation**: Automatically summarizes scraped data and identifies trends or anomalies in real-time.
 - **Natural Language Chat**: A dedicated AI Chat interface (`ai-chat.tsx`) to query your harvested data using RAG (Retrieval-Augmented Generation).
 
 ### 🛠️ **Professional Scraping Engine**
+
 - **Headless Orchestration**: Industrial-scale scraping via Supabase Edge Functions (`scrape-engine`) capable of bypassing basic bot detection.
 - **Custom Schema Architect**: Visual builder for defining extraction rules, supporting nested objects and arrays.
 - **Real-time Monitoring**: Instant feedback on scrape status, success rates, and data throughput.
 
 ### 💎 **Next-Gen UI/UX**
+
 - **Glassmorphism Design**: Extensive use of `GlassCard` and `AAAWrapper` components for a modern, depth-based aesthetic.
 - **Fluid Animations**: Optimized 60FPS transitions using Reanimated, providing a native-plus feel.
 - **Intuitive Navigation**: File-based routing via Expo Router for a logical and scalable app structure.
 
 ### 🔒 **Secure Infrastructure**
+
 - **Atomic Auth**: Robust authentication flow powered by Supabase Auth with granular RLS (Row Level Security) policies.
 - **Encrypted Environment**: Secure handling of API keys and scraping proxies via Supabase Vault and Edge secrets.
 - **App Store Compliant**: Architected specifically to meet Apple and Google's performance and security guidelines.
@@ -51,6 +55,7 @@ The application leverages the "Apex Logic" architecture to provide seamless data
 ## 🛠️ Technical Architecture
 
 ### **Core Frontend Stack**
+
 - **Framework**: React Native (Hermes Engine)
 - **SDK**: Expo 51+
 - **Navigation**: Expo Router (Typed)
@@ -59,6 +64,7 @@ The application leverages the "Apex Logic" architecture to provide seamless data
 - **Icons**: Lucide React Native (via custom `Icons` wrapper)
 
 ### **Cloud & Intelligence**
+
 - **AI Engine**: Google Gemini Flash/Pro (Native Integration)
 - **Backend Logic**: Supabase Edge Functions (Deno Runtime)
 - **Database**: PostgreSQL with PostgREST
