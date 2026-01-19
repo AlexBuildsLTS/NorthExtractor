@@ -218,6 +218,44 @@ export type Database = {
         };
         Relationships: [];
       };
+      scraping_logs: {
+        Row: {
+          created_at: string | null;
+          id: string;
+          job_id: string | null;
+          level: string | null;
+          message: string;
+          metadata: Json | null;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string | null;
+          id?: string;
+          job_id?: string | null;
+          level?: string | null;
+          message: string;
+          metadata?: Json | null;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string | null;
+          id?: string;
+          job_id?: string | null;
+          level?: string | null;
+          message?: string;
+          metadata?: Json | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'scraping_logs_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'scraping_jobs';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
