@@ -1,10 +1,11 @@
 /**
  * ============================================================================
- * 🧭 NorthScrape ADAPTIVE NAVIGATION (V5 ENTERPRISE)
+ * 🧭 NORTH INTELLIGENCE OS: COMMAND NAVIGATION V15.5
  * ============================================================================
- * - FIXED: Double headers removed via 'headerShown: false' at the Root level.
- * - FIXED: Bottom Navigation Bar completely removed on Desktop.
- * - DESIGN: Flat, professional 5-icon bar (Mobile) / Fixed Sidebar (Desktop).
+ * FIXES:
+ * - BULK ACCESS: Added 'Bulk Dispatcher' to Sidebar and Mobile Bar.
+ * - ICON SYNTHESIS: Assigned 'Layers' icon to the Batch Ignition unit.
+ * - VISIBILITY: Ensured 1:1 parity between Desktop and Mobile routes.
  * ============================================================================
  */
 
@@ -22,10 +23,11 @@ import {
   LayoutDashboard,
   Bot,
   Terminal,
-  PlusSquare,
   Zap,
   LogOut,
   Globe,
+  Cpu,
+  Layers,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 
@@ -42,44 +44,38 @@ export default function AdaptiveLayout() {
   if (isLoading) return null;
   if (!user) return <Redirect href="/(auth)/login" />;
 
-  // ==========================================
-  // VIEW A: DESKTOP SIDEBAR (NO BOTTOM BAR)
-  // ==========================================
+  const navigationNodes = [
+    { label: 'Intelligence Hub', icon: LayoutDashboard, path: '/(tabs)/' },
+    { label: 'Cloud Crawler', icon: Globe, path: '/(tabs)/create' },
+    { label: 'Direct Scraper', icon: Cpu, path: '/(tabs)/scraper' },
+    { label: 'Bulk Dispatcher', icon: Layers, path: '/(tabs)/bulk-dispatcher' }, // ADDED NODE
+    { label: 'Live Activity', icon: Terminal, path: '/(tabs)/logs' },
+    { label: 'AI Synthesis', icon: Bot, path: '/(tabs)/ai-chat' },
+  ];
+
   if (isDesktop) {
     return (
       <View style={styles.desktopRoot}>
         <View style={styles.sidebar}>
           <View>
-            {/* BRANDING */}
-            <View className="flex-row items-center px-2 mb-12">
-              <View className="w-10 h-10 bg-[#4FD1C7] rounded-xl items-center justify-center shadow-lg shadow-[#4FD1C7]/30">
+            <View style={styles.brandBox}>
+              <View style={styles.logoCircle}>
                 <Zap size={22} color="#020617" fill="#020617" />
               </View>
-              <Text className="ml-3 text-xl font-black tracking-tighter text-white uppercase">
-                NorthScrape
-              </Text>
+              <Text style={styles.brandText}>NORTHOS</Text>
             </View>
 
-            {[
-              {
-                label: 'Intelligence Hub',
-                icon: LayoutDashboard,
-                path: '/(tabs)/',
-              },
-              { label: 'Cloud Crawler', icon: Globe, path: '/(tabs)/create' },
-              { label: 'Live Activity', icon: Terminal, path: '/(tabs)/logs' },
-              { label: 'AI Synthesis', icon: Bot, path: '/(tabs)/ai-chat' },
-            ].map((item) => {
+            {navigationNodes.map((item) => {
               const active = pathname === item.path;
               return (
                 <TouchableOpacity
                   key={item.path}
                   onPress={() => router.push(item.path as any)}
-                  className={`flex-row items-center p-4 rounded-2xl mb-2 ${active ? 'bg-white/5 border border-white/10' : ''}`}
+                  style={[styles.sideItem, active && styles.sideItemActive]}
                 >
                   <item.icon size={20} color={active ? '#4FD1C7' : '#475569'} />
                   <Text
-                    className={`ml-4 font-bold text-sm ${active ? 'text-white' : 'text-slate-500'}`}
+                    style={[styles.sideLabel, active && styles.sideLabelActive]}
                   >
                     {item.label}
                   </Text>
@@ -88,18 +84,11 @@ export default function AdaptiveLayout() {
             })}
           </View>
 
-          <TouchableOpacity
-            onPress={logout}
-            className="flex-row items-center p-4 pt-8 border-t border-white/5"
-          >
+          <TouchableOpacity onPress={logout} style={styles.sideLogout}>
             <LogOut size={20} color="#EF4444" />
-            <Text className="ml-4 font-bold text-red-500">
-              Terminate Session
-            </Text>
+            <Text style={styles.logoutText}>TERMINATE</Text>
           </TouchableOpacity>
         </View>
-
-        {/* MAIN CONTENT VIEWPORT */}
         <View style={{ flex: 1 }}>
           <Slot />
         </View>
@@ -107,57 +96,63 @@ export default function AdaptiveLayout() {
     );
   }
 
-  // ==========================================
-  // VIEW B: MOBILE TABS (FIXED ARCHITECTURE)
-  // ==========================================
   return (
-    <View style={styles.mobileRoot}>
-      <Tabs
-        screenOptions={{
-          headerShown: false, // CRITICAL: REMOVES THE FIRST HEADER
-          tabBarShowLabel: false,
-          tabBarStyle: {
-            backgroundColor: '#0F172A',
-            borderTopWidth: 1,
-            borderTopColor: 'rgba(255,255,255,0.05)',
-            height: Platform.OS === 'ios' ? 88 : 68,
-          },
-          tabBarActiveTintColor: '#4FD1C7',
-          tabBarInactiveTintColor: '#475569',
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          backgroundColor: '#0A101F',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(255,255,255,0.05)',
+          height: Platform.OS === 'ios' ? 90 : 70,
+        },
+        tabBarActiveTintColor: '#4FD1C7',
+        tabBarInactiveTintColor: '#475569',
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarIcon: ({ color }) => (
+            <LayoutDashboard size={24} color={color} />
+          ),
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            tabBarIcon: ({ color }) => (
-              <LayoutDashboard size={24} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="create"
-          options={{
-            tabBarIcon: ({ color }) => <Globe size={24} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="logs"
-          options={{
-            tabBarIcon: ({ color }) => <Terminal size={24} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="ai-chat"
-          options={{
-            tabBarIcon: ({ color }) => <Bot size={24} color={color} />,
-          }}
-        />
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          tabBarIcon: ({ color }) => <Globe size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="scraper"
+        options={{ tabBarIcon: ({ color }) => <Cpu size={24} color={color} /> }}
+      />
+      <Tabs.Screen
+        name="bulk-dispatcher"
+        options={{
+          tabBarIcon: ({ color }) => <Layers size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="logs"
+        options={{
+          tabBarIcon: ({ color }) => <Terminal size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ai-chat"
+        options={{ tabBarIcon: ({ color }) => <Bot size={24} color={color} /> }}
+      />
 
-        {/* UTILITY - ACCESSED VIA HEADER ONLY */}
-        <Tabs.Screen name="settings/profile" options={{ href: null }} />
-        <Tabs.Screen name="settings/security" options={{ href: null }} />
-      </Tabs>
-    </View>
+      {/* SETTINGS HIDDEN FROM MOBILE TAB BAR */}
+      <Tabs.Screen name="settings/index" options={{ href: null }} />
+      <Tabs.Screen name="settings/profile" options={{ href: null }} />
+      <Tabs.Screen name="settings/security" options={{ href: null }} />
+      <Tabs.Screen name="settings/proxies" options={{ href: null }} />
+      <Tabs.Screen name="settings/webhooks" options={{ href: null }} />
+    </Tabs>
   );
 }
 
@@ -171,5 +166,47 @@ const styles = StyleSheet.create({
     padding: 32,
     justifyContent: 'space-between',
   },
-  mobileRoot: { flex: 1, backgroundColor: '#020617' },
+  brandBox: { flexDirection: 'row', alignItems: 'center', marginBottom: 48 },
+  logoCircle: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#4FD1C7',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandText: {
+    marginLeft: 16,
+    fontSize: 18,
+    fontWeight: '900',
+    color: 'white',
+    letterSpacing: 2,
+  },
+  sideItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  sideItemActive: {
+    backgroundColor: 'rgba(79, 209, 199, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(79, 209, 199, 0.1)',
+  },
+  sideLabel: {
+    marginLeft: 16,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  sideLabelActive: { color: 'white' },
+  sideLogout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  logoutText: { marginLeft: 16, fontWeight: '900', color: '#EF4444' },
 });
