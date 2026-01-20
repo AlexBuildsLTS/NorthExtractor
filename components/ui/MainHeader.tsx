@@ -98,7 +98,6 @@ export const MainHeader = ({ title }: { title: string }) => {
               <Text style={styles.dropdownName}>
                 {user?.full_name || user?.email || 'Operator'}
               </Text>
-              <Text style={styles.dropdownTier}>AUTH_LEVEL: {rawRole}</Text>
             </View>
 
             <View style={styles.menuContainer}>

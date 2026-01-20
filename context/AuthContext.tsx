@@ -1,11 +1,27 @@
-// FILE: context/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { Session } from "@supabase/supabase-js";
+/**
+ * ============================================================================
+ * 🛡️ NORTH INTELLIGENCE OS: AUTH CONTEXT V18.5 (ELITE)
+ * ============================================================================
+ * FEATURES:
+ * - PROFILE_MERGE: Synchronizes Auth data with 'profiles' table records.
+ * - EVENT_DEBOUNCE: Functional state checks to prevent update loops.
+ * - FORENSIC_ERROR_HANDLING: Caught faults logged to terminal core.
+ * ============================================================================
+ */
+
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
+import { supabase } from '@/lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 type AuthContextType = {
   session: Session | null;
-  user: any | null; // Profile data merged with Auth data
+  user: any | null;
   isLoading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -19,49 +35,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
       .single();
+    if (error) console.error('[AUTH_SYNC_FAULT]', error.message);
     return data;
-  };
+  }, []);
 
-  const refreshProfile = async () => {
-    const {
-      data: { session: curSession },
-    } = await supabase.auth.getSession();
-    if (curSession) {
-      const profile = await fetchProfile(curSession.user.id);
+  const refreshProfile = useCallback(
+    async (targetSession: Session) => {
+      if (!targetSession?.user) return;
+      const profile = await fetchProfile(targetSession.user.id);
       setUser({
-        ...curSession.user,
+        ...targetSession.user,
         ...profile,
         name: profile?.full_name,
         avatar: profile?.avatar_url,
       });
-    }
-  };
+    },
+    [fetchProfile],
+  );
 
   useEffect(() => {
+    // 1. Initial Handshake
     supabase.auth
       .getSession()
       .then(async ({ data: { session: initialSession } }) => {
         setSession(initialSession);
-        if (initialSession) await refreshProfile();
+        if (initialSession) await refreshProfile(initialSession);
         setIsLoading(false);
       });
 
+    // 2. Real-Time Pulse Listener
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log(`[AUTH_EVENT]: ${event}`);
+
       setSession(newSession);
-      if (newSession) await refreshProfile();
-      else setUser(null);
+      if (newSession) {
+        await refreshProfile(newSession);
+      } else {
+        setUser(null);
+      }
       setIsLoading(false);
     });
+
     return () => subscription.unsubscribe();
-  }, []);
+  }, [refreshProfile]);
 
   return (
     <AuthContext.Provider
@@ -69,12 +93,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         session,
         user,
         isLoading,
-        refreshProfile,
+        refreshProfile: () =>
+          session ? refreshProfile(session) : Promise.resolve(),
         login: async (email, pass) => {
-          await supabase.auth.signInWithPassword({ email, password: pass });
+          const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password: pass,
+          });
+          if (error) throw error;
         },
         logout: async () => {
-          await supabase.auth.signOut();
+          console.log('Logging out...');
+          const { error } = await supabase.auth.signOut();
+          if (error) {
+            console.error('Error logging out:', error);
+            throw error;
+          }
+          console.log('Successfully logged out');
         },
       }}
     >
@@ -85,6 +120,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

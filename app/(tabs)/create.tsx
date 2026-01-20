@@ -120,7 +120,7 @@ export default function CloudCrawler() {
               <View style={styles.cardHeader}>
                 <View style={styles.iconRow}>
                   <Globe size={18} color="#4FD1C7" />
-                  <Text style={styles.cardLabel}>TARGET_ENDPOINT</Text>
+                  <Text style={styles.cardLabel}>TARGET ENDPOINT</Text>
                 </View>
                 {isUrlValid && <Animated.View entering={ZoomIn}><CheckCircle2 size={16} color="#4FD1C7" /></Animated.View>}
               </View>

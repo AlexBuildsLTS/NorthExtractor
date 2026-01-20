@@ -1,113 +1,184 @@
 /**
  * ============================================================================
- * 🤖 NORTH INTELLIGENCE OS: AI SYNTHESIS CHAT V17.6 (ELITE UNIFIED)
+ * 🧠 NORTH OS: NEURAL SYNTHESIS TERMINAL (V20.0 PRODUCTION)
  * ============================================================================
- * FIXES:
- * - MOBILE OVERLAP: Resolved input anchor overlap via standard flex-footer.
- * - GEOMETRY SYNC: Enforced 32px hyper-rounded corners across all modules.
- * - ICON SYNTHESIS: 64px tinted glow-boxes for AI telemetry.
- * - NEURAL_QUERY: Optimized handshake for Gemini 1.5 Pro synthesis.
+ * ARCHITECTURE:
+ * - EDGE_LINK: Direct high-speed pipe to 'neural-synthesis' Supabase function.
+ * - UI_ENGINE: 'Glassmorphism 3.0' with 32px hyper-radius geometry.
+ * - ADAPTIVE: Zero-layout-shift responsiveness (Mobile/Desktop).
  * ============================================================================
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
-  ViewStyle,
   Alert,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInDown,
-  LinearTransition,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withSpring,
 } from 'react-native-reanimated';
-import { Bot, Send, Cpu, Sparkles, Activity } from 'lucide-react-native';
+import {
+  Cpu,
+  Send,
+  Zap,
+  Terminal,
+  Activity,
+  Bot,
+  BrainCircuit,
+  Sparkles,
+  Command,
+} from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
 
-// UI INTERNAL IMPORTS
+// --- INTERNAL IMPORTS ---
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
 import { supabase } from '@/lib/supabase';
+import { NORTH_THEME } from '@/constants/theme';
 
+// --- TYPES ---
 interface Message {
   id: string;
   role: 'operator' | 'titan';
   content: string;
   timestamp: Date;
+  tokens?: number;
 }
 
-export default function AiSynthesisChat() {
+// --- CONSTANTS ---
+const THEME = {
+  titan: '#4FD1C7', // Cyan
+  operator: '#E2E8F0', // Slate
+  accent: '#A78BFA', // Purple
+  bg: '#020617',
+};
+
+// --- ANIMATED COMPONENTS ---
+const PulseIndicator = () => {
+  const opacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(withTiming(1, { duration: 600 }), withTiming(0.3, { duration: 600 })),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View style={[styles.typingRow, animatedStyle]}>
+      <Activity size={14} color={THEME.titan} />
+      <Text style={styles.typingText}>NEURAL SYNTHESIS IN PROGRESS...</Text>
+    </Animated.View>
+  );
+};
+
+export default function NeuralSynthesisTerminal() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
   const scrollRef = useRef<ScrollView>(null);
 
-  // --- CHAT STATE ---
+  // --- STATE ---
+  const [input, setInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [stats, setStats] = useState({ 
+    queries: 0, 
+    latency: '0ms', 
+    efficiency: '100%' 
+  });
+  
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
+      id: 'init-0',
       role: 'titan',
-      content:
-        'TITAN-2 NEURAL CORE ACTIVE. AWAITING INQUIRY ON EXTRACTION LEDGER.',
+      content: 'TITAN-2 NEURAL CORE ONLINE.\nREADY TO ANALYZE EXTRACTED LEDGER DATA.',
       timestamp: new Date(),
     },
   ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [stats, setStats] = useState({ tokensProcessed: 0, queryCount: 0 });
 
-  // --- NEURAL DISPATCH ---
-  const handleDispatchQuery = async () => {
-    if (!input.trim() || isTyping) return;
+  // --- ENGINE ---
+  const handleSynthesize = async () => {
+    if (!input.trim() || isProcessing) return;
 
+    const queryText = input.trim();
+    setInput(''); // Immediate clear
+    setIsProcessing(true);
+    const startTime = Date.now();
+
+    // 1. Optimistic Operator Message
     const operatorMsg: Message = {
-      id: Math.random().toString(),
+      id: Date.now().toString(),
       role: 'operator',
-      content: input.trim(),
+      content: queryText,
       timestamp: new Date(),
     };
-
     setMessages((prev) => [...prev, operatorMsg]);
-    setInput('');
-    setIsTyping(true);
+
+    // Scroll to bottom
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const { data, error } = await supabase.functions.invoke(
-        'neural-synthesis',
-        {
-          body: { query: operatorMsg.content, history: messages.slice(-5) },
+      // 2. Invoke Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('neural-synthesis', {
+        body: { 
+          query: queryText, 
+          history: messages.slice(-4) // Send last 4 messages for context
         },
-      );
+      });
 
       if (error) throw error;
 
+      // 3. Process Response
+      const executionTime = Date.now() - startTime;
+      const responseText = data?.response || "NO_DATA_RECEIVED";
+      
       const titanMsg: Message = {
-        id: Math.random().toString(),
+        id: (Date.now() + 1).toString(),
         role: 'titan',
-        content: data.response,
+        content: responseText,
         timestamp: new Date(),
+        tokens: data?.tokens || 0,
       };
 
       setMessages((prev) => [...prev, titanMsg]);
-      setStats((s) => ({
-        tokensProcessed: s.tokensProcessed + data.tokens,
-        queryCount: s.queryCount + 1,
+      setStats(prev => ({
+        queries: prev.queries + 1,
+        latency: `${executionTime}ms`,
+        efficiency: '98.4%' // Placeholder metric
       }));
+
     } catch (err: any) {
-      Alert.alert(
-        'Neural Fault',
-        'Communication with Titan core was interrupted.',
-      );
+      console.error('Neural Synthesis Error:', err);
+      const errorMsg: Message = {
+        id: 'err-' + Date.now(),
+        role: 'titan',
+        content: `[SYSTEM_FAILURE]: ${err.message || 'Connection to Neural Core severed.'}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
-      setIsTyping(false);
+      setIsProcessing(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
@@ -115,142 +186,144 @@ export default function AiSynthesisChat() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" />
+      
+      {/* BACKGROUND */}
       <LinearGradient
-        colors={['#020617', '#0A101F', '#020617']}
+        colors={['#020617', '#0F172A', '#020617']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      <MainHeader title="AI Synthesis" />
+
+      <MainHeader title="Neural Synthesis" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
-            styles.scrollArea,
-            { paddingHorizontal: isDesktop ? 64 : 20 },
+            styles.scrollContainer,
+            { paddingHorizontal: isDesktop ? 48 : 20 }
           ]}
           showsVerticalScrollIndicator={false}
-          ref={scrollRef}
-          onContentSizeChange={() =>
-            scrollRef.current?.scrollToEnd({ animated: true })
-          }
         >
           {/* TELEMETRY HUD */}
-          <View
-            style={[
-              styles.topSection,
-              { flexDirection: isDesktop ? 'row' : 'column' },
-            ]}
-          >
-            <GlassCard style={styles.modernStatCard}>
-              <View
-                style={[
-                  styles.iconGlowBox,
-                  { backgroundColor: 'rgba(167, 139, 250, 0.08)' },
-                ]}
-              >
-                <Sparkles size={24} color="#A78BFA" />
-              </View>
-              <View>
-                <Text style={styles.statNumber}>{stats.queryCount}</Text>
-                <Text style={styles.statSubtitle}>SYNTHESIS QUERIES</Text>
-              </View>
-            </GlassCard>
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <View style={[styles.hudGrid, isDesktop ? styles.hudDesktop : styles.hudMobile]}>
+              
+              {/* METRIC 1 */}
+              <GlassCard intensity={40} style={styles.statCard}>
+                <View style={[styles.iconBox, { backgroundColor: 'rgba(79, 209, 199, 0.1)' }]}>
+                  <BrainCircuit size={20} color={THEME.titan} />
+                </View>
+                <View>
+                  <Text style={styles.statValue}>{stats.queries}</Text>
+                  <Text style={styles.statLabel}>SYNTHESES</Text>
+                </View>
+              </GlassCard>
 
-            <GlassCard style={styles.modernStatCard}>
-              <View
-                style={[
-                  styles.iconGlowBox,
-                  { backgroundColor: 'rgba(79, 209, 199, 0.08)' },
-                ]}
-              >
-                <Cpu size={24} color="#4FD1C7" />
-              </View>
-              <View>
-                <Text style={[styles.statNumber, { color: '#4FD1C7' }]}>
-                  {stats.tokensProcessed}
-                </Text>
-                <Text style={styles.statSubtitle}>NEURAL TOKENS USED</Text>
-              </View>
-            </GlassCard>
-          </View>
+              {/* METRIC 2 */}
+              <GlassCard intensity={40} style={styles.statCard}>
+                <View style={[styles.iconBox, { backgroundColor: 'rgba(167, 139, 250, 0.1)' }]}>
+                  <Zap size={20} color={THEME.accent} />
+                </View>
+                <View>
+                  <Text style={[styles.statValue, { color: THEME.accent }]}>{stats.latency}</Text>
+                  <Text style={styles.statLabel}>LATENCY</Text>
+                </View>
+              </GlassCard>
 
-          {/* CHAT STREAM */}
-          <View style={styles.chatContainer}>
-            {messages.map((msg, index) => (
-              <Animated.View
-                key={msg.id}
-                entering={FadeInDown.delay(index * 50)}
+              {/* METRIC 3 */}
+              <GlassCard intensity={40} style={styles.statCard}>
+                <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
+                  <Terminal size={20} color="white" />
+                </View>
+                <View>
+                  <Text style={styles.statValue}>v17.6</Text>
+                  <Text style={styles.statLabel}>CORE VERSION</Text>
+                </View>
+              </GlassCard>
+
+            </View>
+          </Animated.View>
+
+          {/* MESSAGE STREAM */}
+          <View style={styles.chatStream}>
+            {messages.map((msg, idx) => (
+              <Animated.View 
+                key={msg.id} 
+                entering={FadeInUp.delay(idx * 50).springify()}
                 style={[
-                  styles.msgRow,
-                  msg.role === 'operator'
-                    ? styles.msgOperator
-                    : styles.msgTitan,
+                  styles.msgRow, 
+                  msg.role === 'operator' ? styles.rowOperator : styles.rowTitan
                 ]}
               >
-                <GlassCard
+                <GlassCard 
+                  intensity={msg.role === 'operator' ? 20 : 60}
                   style={[
                     styles.msgBubble,
-                    msg.role === 'operator' && styles.bubbleOperator,
+                    msg.role === 'operator' ? styles.bubbleOperator : styles.bubbleTitan
                   ]}
                 >
                   {msg.role === 'titan' && (
                     <View style={styles.titanHeader}>
-                      <Bot size={14} color="#4FD1C7" />
-                      <Text style={styles.titanLabel}>TITAN_CORE</Text>
+                      <Bot size={12} color={THEME.titan} />
+                      <Text style={styles.titanLabel}>TITAN-2 CORE</Text>
                     </View>
                   )}
-                  <Text
-                    style={[
-                      styles.msgText,
-                      msg.role === 'titan' && styles.textTitan,
-                    ]}
-                  >
+                  
+                  <Text style={[
+                    styles.msgContent,
+                    msg.role === 'titan' && styles.titanFont
+                  ]}>
                     {msg.content}
                   </Text>
-                  <Text style={styles.msgTime}>
-                    {msg.timestamp.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+
+                  <Text style={styles.timestamp}>
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </GlassCard>
               </Animated.View>
             ))}
-            {isTyping && (
-              <View style={styles.typingIndicator}>
-                <ActivityIndicator size="small" color="#4FD1C7" />
-                <Text style={styles.typingText}>SYNTHESIZING...</Text>
-              </View>
-            )}
+            
+            {isProcessing && <PulseIndicator />}
           </View>
         </ScrollView>
 
-        {/* FIXED COMMAND INPUT (No Absolute Positioning) */}
-        <View
-          style={[
-            styles.footerInput,
-            { paddingHorizontal: isDesktop ? 64 : 20 },
-          ]}
-        >
-          <GlassCard style={styles.inputCard}>
-            <TextInput
-              style={styles.textInput}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Query the ledger..."
-              placeholderTextColor="#334155"
-              multiline
-            />
-            <TouchableOpacity
-              onPress={handleDispatchQuery}
-              disabled={!input.trim() || isTyping}
-              style={[styles.sendBtn, !input.trim() && styles.btnDisabled]}
-            >
-              <Send size={20} color="#020617" />
-            </TouchableOpacity>
+        {/* COMMAND INPUT */}
+        <View style={[styles.inputWrapper, { paddingHorizontal: isDesktop ? 48 : 20 }]}>
+          <GlassCard intensity={80} style={styles.inputCard}>
+            <View style={styles.inputInner}>
+              <Command size={20} color="#64748B" style={{ marginTop: 12 }} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Initialize extraction query..."
+                placeholderTextColor="#64748B"
+                value={input}
+                onChangeText={setInput}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity 
+                activeOpacity={0.7}
+                onPress={handleSynthesize}
+                disabled={!input.trim() || isProcessing}
+                style={[
+                  styles.sendButton,
+                  (!input.trim() || isProcessing) && styles.sendButtonDisabled
+                ]}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color={THEME.bg} size="small" />
+                ) : (
+                  <Send size={18} color={THEME.bg} />
+                )}
+              </TouchableOpacity>
+            </View>
           </GlassCard>
         </View>
       </KeyboardAvoidingView>
@@ -258,118 +331,152 @@ export default function AiSynthesisChat() {
   );
 }
 
+// --- STYLESHEET ---
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { paddingTop: 48, paddingBottom: 32 },
-  topSection: { gap: 24, marginBottom: 40 },
-
-  modernStatCard: {
+  root: { flex: 1, backgroundColor: THEME.bg },
+  scrollContainer: { paddingVertical: 24, paddingBottom: 120 },
+  
+  // HUD
+  hudGrid: { gap: 16, marginBottom: 40 },
+  hudDesktop: { flexDirection: 'row' },
+  hudMobile: { flexDirection: 'column' },
+  
+  statCard: {
     flex: 1,
-    padding: 28,
-    borderRadius: 32,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 24,
+    padding: 16,
+    borderRadius: 24, // High radius as requested
+    gap: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.05)',
   },
-  iconGlowBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statNumber: {
-    color: 'white',
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: -1,
+  statValue: {
+    color: THEME.titan,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  statSubtitle: {
-    color: '#475569',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 2,
+  statLabel: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
     marginTop: 4,
   },
 
-  chatContainer: { gap: 24, paddingBottom: 20 },
-  msgRow: { flexDirection: 'row', width: '100%' },
-  msgOperator: { justifyContent: 'flex-end' },
-  msgTitan: { justifyContent: 'flex-start' },
+  // CHAT STREAM
+  chatStream: { gap: 20 },
+  msgRow: { width: '100%', flexDirection: 'row' },
+  rowOperator: { justifyContent: 'flex-end' },
+  rowTitan: { justifyContent: 'flex-start' },
+  
   msgBubble: {
-    padding: 20,
-    borderRadius: 32,
     maxWidth: '85%',
+    padding: 20,
+    borderRadius: 32, // Requested 32px
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
   },
   bubbleOperator: {
-    backgroundColor: 'rgba(79, 209, 199, 0.05)',
-    borderColor: 'rgba(79, 209, 199, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderBottomRightRadius: 4,
   },
+  bubbleTitan: {
+    backgroundColor: 'rgba(79, 209, 199, 0.05)',
+    borderColor: 'rgba(79, 209, 199, 0.15)',
+    borderBottomLeftRadius: 4,
+  },
+  
   titanHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   titanLabel: {
-    color: '#4FD1C7',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-  msgText: { color: 'white', fontSize: 14, lineHeight: 22, fontWeight: '500' },
-  textTitan: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 13,
-  },
-  msgTime: {
-    color: '#334155',
-    fontSize: 9,
-    fontWeight: '700',
-    marginTop: 8,
-    textAlign: 'right',
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingLeft: 10,
-    marginBottom: 20,
-  },
-  typingText: {
-    color: '#475569',
-    fontSize: 9,
+    color: THEME.titan,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1,
   },
+  msgContent: {
+    color: '#E2E8F0',
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  titanFont: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 14,
+  },
+  timestamp: {
+    color: '#475569',
+    fontSize: 10,
+    marginTop: 8,
+    alignSelf: 'flex-end',
+  },
 
-  footerInput: { paddingBottom: 32, backgroundColor: 'transparent' },
-  inputCard: {
+  // TYPING
+  typingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 32,
     gap: 12,
+    paddingLeft: 16,
+    marginTop: 8,
+  },
+  typingText: {
+    color: THEME.titan,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  // INPUT
+  inputWrapper: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+  },
+  inputCard: {
+    borderRadius: 40, // Hyper round
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  inputInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 16,
   },
   textInput: {
     flex: 1,
-    paddingHorizontal: 16,
     color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-    maxHeight: 100,
+    fontSize: 15,
+    minHeight: 48,
+    maxHeight: 120,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
-  sendBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#4FD1C7',
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: THEME.titan,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 0,
   },
-  btnDisabled: { opacity: 0.3 },
+  sendButtonDisabled: {
+    backgroundColor: '#334155',
+    opacity: 0.5,
+  },
 });

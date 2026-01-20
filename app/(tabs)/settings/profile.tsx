@@ -173,7 +173,7 @@ export default function ProfileScreen() {
               {loading ? <ActivityIndicator color="#020617" /> : (
                 <>
                    <Save size={20} color="#020617" />
-                   <Text style={styles.saveBtnText}>SAVE_CORE_LEDGER</Text>
+                   <Text style={styles.saveBtnText}>SAVE PROFILE</Text>
                 </>
               )}
             </LinearGradient>

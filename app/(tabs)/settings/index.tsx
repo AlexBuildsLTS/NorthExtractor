@@ -10,7 +10,7 @@
  * ============================================================================
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,6 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,14 +30,12 @@ import {
   Bell,
   ChevronRight,
   LogOut,
-  Zap,
   DollarSign,
   Palette,
   X,
   Check,
   Cpu,
 } from 'lucide-react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 
 // UI INTERNAL IMPORTS
 import { MainHeader } from '@/components/ui/MainHeader';
@@ -48,85 +45,113 @@ import { useAuth } from '@/context/AuthContext';
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'SEK', 'JPY'] as const;
 type Currency = (typeof CURRENCIES)[number];
 
+// Define types for better maintainability
+interface MenuItem {
+  icon: React.ComponentType<{ size: number; color: string }>;
+  label: string;
+  sub: string;
+  link: string;
+  color: string;
+}
+
+interface Section {
+  title: string;
+  items: MenuItem[];
+}
+
+// Move sections to constants for better maintainability
+const BASE_SECTIONS: Section[] = [
+  {
+    title: 'ACCOUNT_IDENTITY',
+    items: [
+      {
+        icon: User,
+        label: 'Profile Information',
+        sub: 'Biometric Metadata',
+        link: '/(tabs)/settings/profile',
+        color: '#64FFDA',
+      },
+      {
+        icon: ShieldCheck,
+        label: 'Security Vault',
+        sub: 'Encryption Keys',
+        link: '/(tabs)/settings/security',
+        color: '#60A5FA',
+      },
+    ],
+  },
+  {
+    title: 'NODE_INFRASTRUCTURE',
+    items: [
+      {
+        icon: Globe,
+        label: 'Proxy Nodes',
+        sub: 'IP Rotation Control',
+        link: '/(tabs)/settings/proxies',
+        color: '#F472B6',
+      },
+      {
+        icon: Bell,
+        label: 'Webhook Dispatch',
+        sub: 'Data Stream Hub',
+        link: '/(tabs)/settings/webhooks',
+        color: '#A78BFA',
+      },
+    ],
+  },
+];
+
+const ADMIN_SECTION: Section = {
+  title: 'SYSTEM_ADMINISTRATION',
+  items: [
+    {
+      icon: Cpu,
+      label: 'Admin Control Center',
+      sub: 'System-wide Telemetry',
+      link: '/(tabs)/admin',
+      color: '#F59E0B',
+    },
+  ],
+};
+
 export default function SettingsIndex() {
   const router = useRouter();
   const { user, logout, refreshProfile } = useAuth();
   const [currencyModal, setCurrencyModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // --- Dynamic Section Logic ---
-  const getMenuSections = () => {
-    const sections = [
-      {
-        title: 'ACCOUNT_IDENTITY',
-        items: [
-          {
-            icon: User,
-            label: 'Profile Information',
-            sub: 'Biometric Metadata',
-            link: '/(tabs)/settings/profile',
-            color: '#64FFDA',
-          },
-          {
-            icon: ShieldCheck,
-            label: 'Security Vault',
-            sub: 'Encryption Keys',
-            link: '/(tabs)/settings/security',
-            color: '#60A5FA',
-          },
-        ],
-      },
-      {
-        title: 'NODE_INFRASTRUCTURE',
-        items: [
-          {
-            icon: Globe,
-            label: 'Proxy Nodes',
-            sub: 'IP Rotation Control',
-            link: '/(tabs)/settings/proxies',
-            color: '#F472B6',
-          },
-          {
-            icon: Bell,
-            label: 'Webhook Dispatch',
-            sub: 'Data Stream Hub',
-            link: '/(tabs)/settings/webhooks',
-            color: '#A78BFA',
-          },
-        ],
-      },
-    ];
-
+  // Use useMemo for performance optimization
+  const sections = useMemo(() => {
+    const sections = [...BASE_SECTIONS];
     // ADMIN PRIVILEGE MODULE
     if (user?.role?.toLowerCase() === 'admin') {
-      sections.splice(1, 0, {
-        title: 'SYSTEM_ADMINISTRATION',
-        items: [
-          {
-            icon: Cpu,
-            label: 'Admin Control Center',
-            sub: 'System-wide Telemetry',
-            link: '/(tabs)/admin',
-            color: '#F59E0B',
-          },
-        ],
-      });
+      sections.splice(1, 0, ADMIN_SECTION);
     }
-
     return sections;
-  };
+  }, [user?.role]);
 
   const handleCurrencyChange = async (newCurrency: Currency) => {
     setSaving(true);
-    // Simulation of your settingsService logic adapted for NorthOS
-    setTimeout(async () => {
+    try {
+      // Simulation of your settingsService logic adapted for NorthOS
+      // In a real app, this would be an API call
+      await new Promise((resolve, reject) => {
+        setTimeout(() => {
+          // Simulate random failure for demo
+          if (Math.random() > 0.9) reject(new Error('Failed to update currency'));
+          resolve(null);
+        }, 1000);
+      });
       setCurrencyModal(false);
       setSaving(false);
+      // Refresh profile if currency affects it
+      await refreshProfile();
       Alert.alert('Success', `Ledger currency adjusted to ${newCurrency}`);
-    }, 1000);
+    } catch (error) {
+      setSaving(false);
+      Alert.alert('Error', 'Failed to update currency. Please try again.');
+    }
   };
-
-  const sections = getMenuSections();
 
   return (
     <View style={styles.root}>
@@ -144,15 +169,37 @@ export default function SettingsIndex() {
         {/* OPERATOR HUD */}
         <GlassCard style={styles.opCard}>
           <View style={styles.avatarBox}>
-            <Zap size={24} color="#4FD1C7" fill="#4FD1C7" />
+            <User size={32} color="#4FD1C7"/>
           </View>
           <View>
             <Text style={styles.opName}>
               {user?.full_name || 'GHOST_OPERATOR'}
             </Text>
-            <Text style={styles.opRole}>
-              AUTH_LEVEL: {user?.role?.toUpperCase() || 'MEMBER'}
-            </Text>
+            <View
+              style={[
+                styles.roleBadge,
+                {
+                  backgroundColor:
+                    user?.role?.toLowerCase() === 'admin'
+                      ? 'rgba(245,158,11,0.15)'
+                      : 'rgba(79,209,199,0.1)',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.roleText,
+                  {
+                    color:
+                      user?.role?.toLowerCase() === 'admin'
+                        ? '#F59E0B'
+                        : '#4FD1C7',
+                  },
+                ]}
+              >
+                {user?.role?.toUpperCase() || 'OPERATOR'}
+              </Text>
+            </View>
           </View>
         </GlassCard>
 
@@ -231,7 +278,7 @@ export default function SettingsIndex() {
         {/* LOGOUT COMMAND */}
         <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
           <LogOut size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>TERMINATE_SESSION</Text>
+          <Text style={styles.logoutText}>SIGN OUT</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -296,13 +343,15 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: -0.5,
   },
-  opRole: {
-    color: '#4FD1C7',
-    fontSize: 10,
-    fontWeight: '900',
-    marginTop: 4,
-    letterSpacing: 2,
+
+  roleBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 8,
   },
+  roleText: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
   sectionGroup: { marginBottom: 32 },
   sectionTitle: {
     color: '#475569',

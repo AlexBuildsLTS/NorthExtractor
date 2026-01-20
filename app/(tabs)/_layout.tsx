@@ -41,16 +41,15 @@ export default function AdaptiveLayout() {
 
   const isDesktop = width >= DESKTOP_WIDTH;
 
-  if (isLoading) return null;
-  if (!user) return <Redirect href="/(auth)/login" />;
+
 
   const navigationNodes = [
-    { label: 'Intelligence Hub', icon: LayoutDashboard, path: '/(tabs)/' },
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/(tabs)/' },
     { label: 'Cloud Crawler', icon: Globe, path: '/(tabs)/create' },
     { label: 'Direct Scraper', icon: Cpu, path: '/(tabs)/scraper' },
     { label: 'Bulk Dispatcher', icon: Layers, path: '/(tabs)/bulk-dispatcher' }, // ADDED NODE
-    { label: 'Live Activity', icon: Terminal, path: '/(tabs)/logs' },
-    { label: 'AI Synthesis', icon: Bot, path: '/(tabs)/ai-chat' },
+    { label: 'Logs', icon: Terminal, path: '/(tabs)/logs' },
+    { label: 'AI', icon: Bot, path: '/(tabs)/ai-chat' },
   ];
 
   if (isDesktop) {
@@ -62,7 +61,7 @@ export default function AdaptiveLayout() {
               <View style={styles.logoCircle}>
                 <Zap size={22} color="#020617" fill="#020617" />
               </View>
-              <Text style={styles.brandText}>NORTHOS</Text>
+              <Text style={styles.brandText}>NorthOS</Text>
             </View>
 
             {navigationNodes.map((item) => {

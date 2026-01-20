@@ -243,7 +243,7 @@ export default function IntelligenceHub() {
           {filteredExtractions.length === 0 && !isLoading && (
             <View style={styles.emptyContainer}>
               <Database size={48} color="#1E293B" />
-              <Text style={styles.emptyText}>NO_NODES_MATCH_QUERY</Text>
+              <Text style={styles.emptyText}>QUERY</Text>
             </View>
           )}
 

@@ -105,7 +105,7 @@ export default function SecurityVault() {
 
           <TouchableOpacity style={styles.dangerBtn} onPress={logout}>
             <LogOut size={18} color="#EF4444" />
-            <Text style={styles.dangerBtnText}>TERMINATE_SESSION</Text>
+            <Text style={styles.dangerBtnText}>SIGN OUT</Text>
           </TouchableOpacity>
         </GlassCard>
       </ScrollView>
