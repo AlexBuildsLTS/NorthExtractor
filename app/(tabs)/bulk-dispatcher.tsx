@@ -1,16 +1,16 @@
 /**
  * ============================================================================
- * 🚄 NORTH INTELLIGENCE OS: GLOBAL BULK DISPATCHER V16.0
+ * 🛰️ NORTH INTELLIGENCE OS: BULK DISPATCHER HUD V120.0
  * ============================================================================
- * ORCHESTRATION ARCHITECTURE:
- * - CONCURRENCY_LOCK: Processes URLs in sequential batches to prevent timeouts.
- * - REAL-TIME_MATRIX: Live success/fail telemetry across the entire batch.
- * - AUTO_SANITY: Strips whitespace and validates protocol prefixes instantly.
- * - LEDGER_SYNC: Every node ignition creates a unique entry in the job ledger.
+ * PATH: app/(tabs)/bulk-dispatcher.tsx
+ * FEATURES:
+ * - MASSIVE EXTRACTION: Provisions multiple data nodes in a single handshake.
+ * - RPC INTEGRATION: Wires directly to public.dispatch_bulk_jobs.
+ * - INDUSTRIAL UI: 48px radii and heavy-glass synthesis.
  * ============================================================================
  */
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -20,268 +20,163 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-  useWindowDimensions,
   Platform,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeInDown,
-  LinearTransition,
-} from 'react-native-reanimated';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import {
-  Zap,
-  Globe,
-  Database,
-  Play,
   Layers,
-  Cpu,
+  Zap,
+  Database,
+  Terminal,
+  Globe,
   List,
-  Trash2,
-  CheckCircle,
-  AlertTriangle,
-  Activity,
 } from 'lucide-react-native';
 
-// UI INTERNAL IMPORTS
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
-import { supabase } from '@/lib/supabase';
 
 export default function BulkDispatcher() {
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
+  const { user } = useAuth();
 
-  // --- ORCHESTRATION STATE ---
-  const [rawInput, setRawInput] = useState('');
+  // HUD STATE
+  const [urlInput, setUrlInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentProgress, setCurrentProgress] = useState({
-    total: 0,
-    processed: 0,
-    success: 0,
-    failed: 0,
-  });
 
-  // --- AUTOMATIC SANITIZATION ENGINE ---
-  const sanitizedNodes = useMemo(() => {
-    return rawInput
+  /**
+   * CLUSTER IGNITION PROTOCOL
+   * Parses text input and triggers the bulk dispatch RPC.
+   */
+  const handleBulkIgnition = async () => {
+    if (!user) return Alert.alert('Security Fault', 'Operator unauthorized.');
+
+    // 1. CLEANSE & VALIDATE NODES
+    const urls = urlInput
       .split('\n')
-      .map((url) => url.trim())
-      .filter((url) => url.startsWith('http'));
-  }, [rawInput]);
+      .map((u) => u.trim())
+      .filter((u) => u.startsWith('http'));
 
-  // --- BATCH IGNITION SEQUENCE ---
-  const activateBatchIgnition = async () => {
-    if (sanitizedNodes.length === 0) {
+    if (urls.length === 0) {
       return Alert.alert(
-        'Buffer Empty',
-        'No valid HTTPS designations detected in ingestion buffer.',
+        'Protocol Fault',
+        'No valid target URLs detected in input buffer.',
       );
     }
 
     setIsProcessing(true);
-    setCurrentProgress({
-      total: sanitizedNodes.length,
-      processed: 0,
-      success: 0,
-      failed: 0,
-    });
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('Operator identity is unknown.');
+      // 2. RPC HANDSHAKE: Call the bulk dispatch function in Supabase
+      const { data, error } = await supabase.rpc('dispatch_bulk_jobs', {
+        p_schema: { type: 'auto_semantic' }, // Default extraction logic
+        p_urls: urls,
+        p_user_id: user.id,
+      });
 
-      // SEQUENTIAL BATCH CONTROLLER
-      // We process one by one with a delay to respect DOM rate-limits
-      for (let i = 0; i < sanitizedNodes.length; i++) {
-        const targetUrl = sanitizedNodes[i];
-
-        try {
-          // 1. Commit Node to Job Ledger
-          const { data: job, error: jobErr } = await supabase
-            .from('scraping_jobs')
-            .insert({
-              url: targetUrl,
-              user_id: user.id,
-              status: 'running',
-              target_schema: { type: 'bulk_auto_detect' },
-            })
-            .select()
-            .single();
-
-          if (jobErr) throw jobErr;
-
-          // 2. Handshake with Titan-2 Edge Core
-          const { error: coreErr } = await supabase.functions.invoke(
-            'scrape-engine',
-            {
-              body: {
-                url: targetUrl,
-                job_id: job.id,
-                operator_id: user.id,
-                config: { neural_parsing: true, bulk_mode: true },
-              },
-            },
-          );
-
-          if (coreErr) throw coreErr;
-
-          setCurrentProgress((p) => ({
-            ...p,
-            processed: i + 1,
-            success: p.success + 1,
-          }));
-        } catch (err) {
-          console.error(`Node Ignition Failure [${targetUrl}]:`, err);
-          setCurrentProgress((p) => ({
-            ...p,
-            processed: i + 1,
-            failed: p.failed + 1,
-          }));
-        }
-
-        // THROTTLING HANDSHAKE
-        // Prevents IP blacklisting and CPU spikes
-        await new Promise((res) => setTimeout(res, 1200));
-      }
+      if (error) throw error;
 
       Alert.alert(
-        'Operation Complete',
-        `Successfully processed ${currentProgress.success} nodes.`,
+        'Cluster Deployed',
+        `Successfully ignited ${data} nodes. Telemetry is now streaming to the Command Center.`,
       );
+      setUrlInput('');
     } catch (e: any) {
-      Alert.alert('Batch Fault', e.message);
+      console.error('[TITAN-DISPATCH] Handshake Fault:', e.message);
+      Alert.alert('Deployment Failure', e.message);
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const clearBuffer = () => {
-    setRawInput('');
-    setCurrentProgress({ total: 0, processed: 0, success: 0, failed: 0 });
   };
 
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
-        colors={['#020617', '#0A101F', '#020617']}
+        colors={['#020617', '#010015']}
         style={StyleSheet.absoluteFill}
       />
-      <MainHeader title="Bulk Dispatcher" />
+      <MainHeader title="BULK DISPATCHER" />
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollArea,
-          { paddingHorizontal: isDesktop ? 40 : 16 },
-        ]}
+        contentContainerStyle={styles.scrollArea}
         showsVerticalScrollIndicator={false}
       >
-        {/* INGESTION UNIT */}
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <GlassCard style={styles.ingestionCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.labelRow}>
-                <Layers size={18} color="#4FD1C7" />
-                <Text style={styles.labelText}>BULK BUFFER</Text>
-              </View>
-              <TouchableOpacity onPress={clearBuffer}>
-                <Trash2 size={16} color="#475569" />
-              </TouchableOpacity>
+        {/* OPERATOR HEADER */}
+        <Animated.View
+          entering={FadeInDown.duration(800)}
+          style={styles.header}
+        >
+          <Text style={styles.sysTag}>BATCH_IGNITION_ACTIVE</Text>
+          <Text style={styles.title}>Cluster Logic</Text>
+        </Animated.View>
+
+        {/* URL BUFFER INPUT */}
+        <Animated.View entering={FadeInUp.delay(200)}>
+          <GlassCard intensity={45} style={styles.inputCard}>
+            <View style={styles.labelRow}>
+              <List size={16} color="#4FD1C7" />
+              <Text style={styles.labelText}>
+                TARGET URL BUFFER (ONE PER LINE)
+              </Text>
             </View>
 
             <TextInput
               style={styles.textArea}
-              multiline
-              value={rawInput}
-              onChangeText={setRawInput}
-              placeholder="Paste target list (one URL per line)..."
+              placeholder={`https://endpoint-alpha.com\nhttps://endpoint-beta.com`}
               placeholderTextColor="#334155"
-              editable={!isProcessing}
+              multiline
+              value={urlInput}
+              onChangeText={setUrlInput}
               autoCapitalize="none"
               keyboardType="url"
+              spellCheck={false}
             />
 
-            <TouchableOpacity
-              onPress={activateBatchIgnition}
-              disabled={isProcessing || sanitizedNodes.length === 0}
-              style={[
-                styles.ignitionBtn,
-                (isProcessing || sanitizedNodes.length === 0) &&
-                  styles.btnDisabled,
-              ]}
-            >
-              <LinearGradient
-                colors={['#4FD1C7', '#38B2AC']}
-                style={styles.btnGradient}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="#020617" />
-                ) : (
-                  <>
-                    <Zap size={20} color="#020617" fill="#020617" />
-                    <Text style={styles.btnText}>
-                      IGNITE {sanitizedNodes.length} NODES
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+            <View style={styles.statFooter}>
+              <Database size={12} color="#475569" />
+              <Text style={styles.statText}>
+                DETECTED_NODES:{' '}
+                {
+                  urlInput
+                    .split('\n')
+                    .filter((l) => l.trim().startsWith('http')).length
+                }
+              </Text>
+            </View>
           </GlassCard>
         </Animated.View>
 
-        {/* PROGRESS MATRIX */}
-        {(isProcessing || currentProgress.processed > 0) && (
-          <Animated.View entering={FadeInDown.delay(200)}>
-            <GlassCard style={styles.matrixCard}>
-              <View style={styles.matrixHeader}>
-                <Cpu size={16} color="#4FD1C7" />
-                <Text style={styles.matrixLabel}>BATCH_TELEMETRY_MATRIX</Text>
-                {isProcessing && (
-                  <Activity
-                    size={14}
-                    color="#4FD1C7"
-                    style={{ marginLeft: 'auto' }}
-                  />
-                )}
-              </View>
+        {/* EXECUTION NODE */}
+        <TouchableOpacity
+          style={[styles.igniteBtn, isProcessing && { opacity: 0.5 }]}
+          onPress={handleBulkIgnition}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <ActivityIndicator color="#020617" />
+          ) : (
+            <LinearGradient
+              colors={['#4FD1C7', '#38B2AC']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientInner}
+            >
+              <Zap size={20} color="#020617" fill="#020617" />
+              <Text style={styles.igniteText}>IGNITE BATCH CLUSTER</Text>
+            </LinearGradient>
+          )}
+        </TouchableOpacity>
 
-              <View style={styles.matrixGrid}>
-                <View style={styles.matrixItem}>
-                  <Text style={styles.matrixValue}>
-                    {currentProgress.processed}/{currentProgress.total}
-                  </Text>
-                  <Text style={styles.matrixKey}>SEQUENCED</Text>
-                </View>
-                <View style={styles.matrixItem}>
-                  <Text style={[styles.matrixValue, { color: '#4FD1C7' }]}>
-                    {currentProgress.success}
-                  </Text>
-                  <Text style={styles.matrixKey}>COMMITTED</Text>
-                </View>
-                <View style={styles.matrixItem}>
-                  <Text style={[styles.matrixValue, { color: '#EF4444' }]}>
-                    {currentProgress.failed}
-                  </Text>
-                  <Text style={styles.matrixKey}>FAULTED</Text>
-                </View>
-              </View>
-
-              <View style={styles.barContainer}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: `${(currentProgress.processed / currentProgress.total) * 100}%`,
-                    },
-                  ]}
-                />
-              </View>
-            </GlassCard>
-          </Animated.View>
-        )}
+        <View style={styles.noticeBox}>
+          <Terminal size={14} color="#1E293B" />
+          <Text style={styles.noticeText}>
+            Batch ignition consumes high compute resources. Distributed proxies
+            will be rotated automatically.
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -289,92 +184,89 @@ export default function BulkDispatcher() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { paddingTop: 32, paddingBottom: 150 },
-  ingestionCard: { padding: 32, borderRadius: 32, marginBottom: 32 },
-  cardHeader: {
+  scrollArea: { padding: 32, paddingBottom: 120 },
+  header: { marginBottom: 48 },
+  sysTag: {
+    color: '#4FD1C7',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 4,
+  },
+  title: { color: 'white', fontSize: 44, fontWeight: '900', marginTop: 12 },
+
+  inputCard: {
+    padding: 40,
+    borderRadius: 48,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  labelRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
     marginBottom: 24,
   },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   labelText: {
     color: '#4FD1C7',
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 3,
+    letterSpacing: 2,
   },
+
   textArea: {
-    height: 350,
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    minHeight: 280,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: 24,
-    borderRadius: 20,
-    color: 'white',
-    fontSize: 14,
+    color: '#FFF',
+    fontSize: 15,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
     textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
   },
-  ignitionBtn: {
-    marginTop: 32,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#4FD1C7',
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
+
+  statFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 24,
+    opacity: 0.6,
   },
-  btnGradient: {
+  statText: {
+    color: '#475569',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  igniteBtn: { height: 84, borderRadius: 42, overflow: 'hidden' },
+  gradientInner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 22,
-    gap: 12,
+    gap: 16,
   },
-  btnText: {
+  igniteText: {
     color: '#020617',
     fontWeight: '900',
-    fontSize: 15,
-    letterSpacing: 2,
+    fontSize: 17,
+    letterSpacing: 1,
   },
-  btnDisabled: { opacity: 0.4 },
-  matrixCard: { padding: 32, borderRadius: 32 },
-  matrixHeader: {
+
+  noticeBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 24,
+    marginTop: 40,
+    gap: 16,
+    paddingHorizontal: 20,
   },
-  matrixLabel: {
-    color: 'white',
+  noticeText: {
+    color: '#1E293B',
     fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 4,
+    lineHeight: 18,
+    flex: 1,
+    fontWeight: '700',
   },
-  matrixGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-  },
-  matrixItem: { alignItems: 'center' },
-  matrixValue: {
-    color: 'white',
-    fontSize: 28,
-    fontWeight: '900',
-    fontStyle: 'italic',
-  },
-  matrixKey: {
-    color: '#475569',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginTop: 4,
-  },
-  barContainer: {
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  barFill: { height: '100%', backgroundColor: '#4FD1C7' },
 });

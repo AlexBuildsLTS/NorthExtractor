@@ -1,19 +1,5 @@
-/**
- * ============================================================================
- * 🧠 TITAN-2 NEURAL SYNTHESIS CORE (V19.9 ELITE)
- * ============================================================================
- * Path: supabase/functions/neural-synthesis/index.ts
- * REPAIRS:
- * - Aligned with User's REST-style architecture.
- * - Added "Ledger Injection" to analyze scraped data.
- * - Enforced 200-OK Error handling for clean UI display.
- * ============================================================================
- */
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
-
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+import { serve } from "std/http/server.ts";
+import { createClient } from "supabase";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,62 +7,109 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 };
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS')
+const GEMINI_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+
+/**
+ * APEXSCRAPE: NEURAL SYNTHESIS CORE
+ * Purpose: Aggregates harvested nodes and provides context-aware AI intelligence.
+ */
+serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
 
   const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
   try {
-    const { query, history } = await req.json();
-    const apiKey = Deno.env.get('GEMINI_API_KEY');
+    const { query, job_id } = await req.json();
 
-    if (!apiKey) throw new Error('MISSING_GEMINI_API_KEY_IN_VAULT');
-
-    // 1. DATA HARVESTING: Pull the scraped intelligence from your ledger
-    const { data: ledgerNodes } = await supabase
+    // 1. DATA AGGREGATION: Pull context from the ledger
+    // If job_id is provided, focus on that job. Otherwise, pull latest 5 nodes.
+    let queryBuilder = supabase
       .from('extracted_data')
-      .select('content_structured, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5);
+      .select('content_structured, created_at, job_id')
+      .order('created_at', { ascending: false });
 
-    // 2. CONSTRUCT THE INTELLIGENCE PROMPT
-    const systemInstructions = `
-      You are the Titan-2 Intelligence Core. You have forensic access to the operator's extraction ledger.
+    if (job_id) {
+      queryBuilder = queryBuilder.eq('job_id', job_id);
+    } else {
+      queryBuilder = queryBuilder.limit(10);
+    }
+
+    const { data: nodes, error: nodeError } = await queryBuilder;
+
+    if (nodeError) throw nodeError;
+
+    const context =
+      nodes && nodes.length > 0
+        ? `LEDGER_DATA: ${JSON.stringify(nodes)}`
+        : 'LEDGER_STATUS: EMPTY. No recent extractions found.';
+
+    // 2. AI PROCESSING: Engage Google Gemini
+    const systemPrompt = `
+      ROLE: Titan OS Core Intelligence.
+      CONTEXT: You are analyzing a ledger of web-scraped data harvested by the Scrape Engine.
+      DATA_SET: ${context}
       
-      CURRENT LEDGER DATA:
-      ${JSON.stringify(ledgerNodes)}
-
-      Analyze the ledger objectively. Provide forensic insights. 
-      If no data exists in the ledger, state: "NODE_DATA_NOT_FOUND".
+      INSTRUCTIONS:
+      - Provide insights based strictly on the LEDGER_DATA.
+      - If data is missing, explain what kind of scrape is needed.
+      - Use a precise, technical, yet helpful tone.
     `;
 
-    // 3. REST-STYLE FETCH (Matched to your preferred style)
-    const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: `SYSTEM: ${systemInstructions}\n\nUSER_QUERY: ${query}` },
-            ],
+    const apiResp = await fetch(
+      `${GEMINI_URL}?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemPrompt}\n\nUSER_QUERY: ${query}` }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 2048,
           },
-        ],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-      }),
-    });
+        }),
+      },
+    );
 
-    const data = await response.json();
-    const aiText =
-      data.candidates?.[0]?.content?.parts?.[0]?.text || 'ANALYSIS_ABORTED';
+    const geminiData = await apiResp.json();
+
+    if (geminiData.error) {
+      throw new Error(`Gemini API Error: ${geminiData.error.message}`);
+    }
+
+    const aiResponse =
+      geminiData.candidates?.[0]?.content?.parts?.[0]?.text ||
+      'FAIL: Neural link timed out.';
+
+    // 3. PERSIST INSIGHT: Store the generated intelligence
+    if (job_id && aiResponse !== 'FAIL') {
+      await supabase.from('ai_insights').insert({
+        data_id: nodes?.[0]?.job_id || null, // Link to newest node
+        user_id: (
+          await supabase.auth.getUser(
+            req.headers.get('Authorization')?.split(' ')[1] || '',
+          )
+        ).data.user?.id,
+        task_type: 'context_analysis',
+        insight_text: aiResponse,
+        confidence_score: 0.95,
+      });
+    }
 
     return new Response(
-      JSON.stringify({ response: aiText, tokens: aiText.length / 4 }),
+      JSON.stringify({ response: aiResponse, tokens: aiResponse.length / 4 }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
@@ -89,3 +122,4 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+

@@ -1,294 +1,188 @@
 /**
  * ============================================================================
- * 🧭 NORTH INTELLIGENCE OS: INTELLIGENCE HUB V17.5 (ELITE UNIFIED)
+ * 💠 NORTH INTELLIGENCE OS: COMMAND CENTER (DASHBOARD) V100.0
  * ============================================================================
+ * PATH: app/(tabs)/index.tsx
  * ARCHITECTURE:
- * - SLEEK GEOMETRY: 32px hyper-rounded modules with 64px icon glow-boxes.
- * - ICON SYNTHESIS: High-fidelity tinted containers [image_246082.png].
- * - REAL-TIME_TELEMETRY: Live node counts and NEURAL_FLOW_SPECTRUM.
- * - GLOBAL_SEARCH: Scans synthesized JSON payloads for keywords.
+ * - REAL-TIME TELEMETRY: Live hooks into public.scraping_jobs and logs.
+ * - TYPE-STRICT: Aligned with Database['public']['Tables'] and Enums.
+ * - AAA+ UX: NativeWind + Reanimated 4 sequenced transitions.
  * ============================================================================
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  StyleSheet,
-  useWindowDimensions,
-  RefreshControl,
-  Platform,
-  ViewStyle,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl,
+  StyleSheet, useWindowDimensions, Platform, ActivityIndicator
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeInDown,
-  LinearTransition,
-} from 'react-native-reanimated';
-import {
-  Search,
-  Cpu,
-  Activity,
-  Zap,
-  ArrowRight,
-  Globe,
-  Database,
-  RefreshCcw,
+import Animated, { FadeInUp, FadeInDown, Layout } from 'react-native-reanimated';
+import { 
+  Cpu, Database, Activity, Zap, Layers, 
+  ChevronRight, AlertCircle, CheckCircle2, Terminal
 } from 'lucide-react-native';
 
-// UI INTERNAL IMPORTS
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { Tables } from '@/supabase/database.types';
 
-export default function IntelligenceHub() {
+type Job = Tables<'scraping_jobs'>;
+
+export default function CommandCenter() {
   const router = useRouter();
+  const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
-
-  // --- HUB STATE ---
-  const [searchQuery, setSearchQuery] = useState('');
-  const [extractions, setExtractions] = useState<any[]>([]);
+  
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({ nodes: 0, data: 0, faults: 0 });
+  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
 
-  // --- DATA ACQUISITION & REAL-TIME PULSE ---
-  const fetchGlobalIntel = useCallback(async () => {
+  // --- CORE TELEMETRY HANDSHAKE ---
+  const syncTelemetry = async () => {
+    if (!user) return;
     try {
-      const { data } = await supabase
-        .from('extracted_data')
-        .select(
-          'id, created_at, content_structured, scraping_jobs(url, status)',
-        )
-        .order('created_at', { ascending: false });
+      // 1. Fetch Aggregated Metrics
+      const [jobsRes, dataRes, faultsRes] = await Promise.all([
+        supabase.from('scraping_jobs').select('*', { count: 'exact', head: true }),
+        supabase.from('extracted_data').select('*', { count: 'exact', head: true }),
+        supabase.from('scraping_logs').select('*', { count: 'exact', head: true }).eq('level', 'error')
+      ]);
 
-      if (data) setExtractions(data);
-    } catch (err) {
-      console.error('[HUB_SYNC_FAULT]', err);
+      setStats({
+        nodes: jobsRes.count || 0,
+        data: dataRes.count || 0,
+        faults: faultsRes.count || 0
+      });
+
+      // 2. Fetch Recent Ledger Entries
+      const { data: jobs } = await supabase
+        .from('scraping_jobs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(isDesktop ? 10 : 5);
+
+      setRecentJobs(jobs || []);
+    } catch (e) {
+      console.error('[TITAN-DB] Metrics Handshake Failed:', e);
     } finally {
       setIsLoading(false);
-      setRefreshing(false);
+      setIsRefreshing(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchGlobalIntel();
-    const channel = supabase
-      .channel('global-hub-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'extracted_data' },
-        () => fetchGlobalIntel(),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'scraping_jobs' },
-        () => fetchGlobalIntel(),
-      )
+    syncTelemetry();
+
+    // 3. Real-time Node Subscription
+    const channel = supabase.channel('titan-dashboard-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scraping_jobs' }, () => {
+        syncTelemetry();
+      })
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchGlobalIntel]);
 
-  // --- ANALYTICS ---
-  const stats = useMemo(
-    () => ({
-      total: extractions.length,
-      active: extractions.filter((e) => e.scraping_jobs?.status === 'running')
-        .length,
-    }),
-    [extractions],
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
+  // --- UI RENDER COMPONENTS ---
+  const MetricCard = ({ label, value, icon, color }: { label: string, value: number, icon: any, color: string }) => (
+    <GlassCard style={[styles.statCard, { width: isDesktop ? '31%' : '100%' }]}>
+      <View style={styles.statHeader}>
+        <View style={[styles.iconBox, { backgroundColor: color + '20' }]}>{icon}</View>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+      <Text style={styles.statValue}>{value.toLocaleString()}</Text>
+    </GlassCard>
   );
-
-  const spectrumData = useMemo(() => {
-    const segments = isDesktop ? 20 : 12;
-    return Array.from({ length: segments }, (_, i) => {
-      const count = extractions.filter((e) => {
-        const diff =
-          (Date.now() - new Date(e.created_at).getTime()) / (1000 * 60 * 60);
-        return diff >= i && diff < i + 1;
-      }).length;
-      return {
-        height: count === 0 ? 10 : Math.min(100, 20 + count * 15),
-        isActive: i === 0,
-      };
-    }).reverse();
-  }, [extractions, isDesktop]);
-
-  const filteredExtractions = useMemo(() => {
-    if (!searchQuery.trim()) return extractions;
-    const query = searchQuery.toLowerCase();
-    return extractions.filter((item) => {
-      const payload = JSON.stringify(item.content_structured).toLowerCase();
-      const url = item.scraping_jobs?.url?.toLowerCase() || '';
-      return payload.includes(query) || url.includes(query);
-    });
-  }, [searchQuery, extractions]);
 
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#020617', '#0A101F', '#020617']}
-        style={StyleSheet.absoluteFill}
-      />
-      <MainHeader title="Intelligence Hub" />
+      <LinearGradient colors={['#020617', '#0F172A', '#020617']} style={StyleSheet.absoluteFill} />
+      <MainHeader title="Command Center" />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollArea,
-          { paddingHorizontal: isDesktop ? 64 : 20 },
-        ]}
-        showsVerticalScrollIndicator={false}
+      <ScrollView 
+        contentContainerStyle={[styles.scrollArea, isDesktop && styles.desktopPadding]}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={fetchGlobalIntel}
-            tintColor="#4FD1C7"
-          />
+          <RefreshControl refreshing={isRefreshing} onRefresh={() => { setIsRefreshing(true); syncTelemetry(); }} tintColor="#4FD1C7" />
         }
       >
-        {/* SECTION 1: MODERN TELEMETRY HUD [image_246082.png] */}
-        <View
-          style={[
-            styles.topSection,
-            { flexDirection: isDesktop ? 'row' : 'column' },
-          ]}
-        >
-          <View style={styles.statsColumn}>
-            <GlassCard style={styles.modernStatCard}>
-              <View
-                style={[
-                  styles.iconGlowBox,
-                  { backgroundColor: 'rgba(79, 209, 199, 0.08)' },
-                ]}
-              >
-                <Cpu size={24} color="#4FD1C7" />
-              </View>
-              <View>
-                <Text style={styles.statNumber}>{stats.total}</Text>
-                <Text style={styles.statSubtitle}>TOTAL</Text>
-              </View>
-            </GlassCard>
-
-            <GlassCard style={styles.modernStatCard}>
-              <View
-                style={[
-                  styles.iconGlowBox,
-                  { backgroundColor: 'rgba(59, 130, 246, 0.08)' },
-                ]}
-              >
-                <Activity size={24} color="#3B82F6" />
-              </View>
-              <View>
-                <Text style={[styles.statNumber, { color: '#3B82F6' }]}>
-                  {stats.active}
-                </Text>
-                <Text style={styles.statSubtitle}>ACTIVE SEQUENCE</Text>
-              </View>
-            </GlassCard>
-          </View>
-
-          <GlassCard style={styles.wideSpectrumCard}>
-            <View style={styles.spectrumHeader}>
-              <Text style={styles.spectrumTitle}>NEURAL FLOW   </Text>
-              <View style={styles.liveTag}>
-                <View style={styles.livePulse} />
-                <Text style={styles.liveText}>LIVE</Text>
-              </View>
-            </View>
-            <View style={styles.spectrumBody}>
-              {spectrumData.map((d, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.spectrumBar,
-                    {
-                      height: `${d.height}%`,
-                      backgroundColor: d.isActive
-                        ? '#4FD1C7'
-                        : 'rgba(255,255,255,0.05)',
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-          </GlassCard>
-        </View>
-
-        {/* SECTION 2: SEARCH UNIT */}
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <GlassCard style={styles.modernSearch}>
-            <Search size={20} color="#475569" />
-            <TextInput
-              style={styles.modernInput}
-              placeholder="SEARCH"
-              placeholderTextColor="#334155"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="none"
-            />
-            {isLoading && <ActivityIndicator size="small" color="#4FD1C7" />}
-          </GlassCard>
+        {/* OPERATOR WELCOME */}
+        <Animated.View entering={FadeInDown.delay(100)} style={styles.welcomeBox}>
+          <Text style={styles.welcomeTag}>SYSTEM_ACTIVE</Text>
+          <Text style={styles.operatorName}>OPERATOR: {user?.fullName || 'IDENTIFYING...'}</Text>
         </Animated.View>
 
-        {/* SECTION 3: INTELLIGENCE GRID */}
-        <View style={styles.resultsGrid}>
-          {filteredExtractions.length === 0 && !isLoading && (
-            <View style={styles.emptyContainer}>
-              <Database size={48} color="#1E293B" />
-              <Text style={styles.emptyText}>QUERY</Text>
-            </View>
-          )}
+        {/* METRICS HUD */}
+        <View style={styles.metricsGrid}>
+          <MetricCard label="ACTIVE_NODES" value={stats.nodes} icon={<Cpu size={20} color="#4FD1C7" />} color="#4FD1C7" />
+          <MetricCard label="HARVESTED_DATA" value={stats.data} icon={<Database size={20} color="#A78BFA" />} color="#A78BFA" />
+          <MetricCard label="SYSTEM_FAULTS" value={stats.faults} icon={<AlertCircle size={20} color="#F43F5E" />} color="#F43F5E" />
+        </View>
 
-          {filteredExtractions.map((item, index) => (
-            <Animated.View
-              key={item.id}
-              entering={FadeInDown.delay(index * 40)}
-              layout={LinearTransition}
-            >
-              <TouchableOpacity
-                onPress={() =>
-                  router.push(`/(tabs)/scraper?jobId=${item.id}` as any)
-                }
-              >
-                <GlassCard style={styles.resultItemCard}>
-                  <View style={styles.resultHeader}>
-                    <View style={styles.urlBox}>
-                      <Globe size={12} color="#4FD1C7" />
-                      <Text style={styles.urlLabel} numberOfLines={1}>
-                        {item.scraping_jobs?.url.replace('https://', '')}
-                      </Text>
-                    </View>
-                    <Text style={styles.timeStamp}>
-                      {new Date(item.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                  </View>
-                  <Text style={styles.previewData} numberOfLines={3}>
-                    {JSON.stringify(item.content_structured).replace(
-                      /[{}"]/g,
-                      ' ',
-                    )}
-                  </Text>
-                  <View style={styles.cardActionRow}>
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>SYNTHESIZED</Text>
-                    </View>
-                    <ArrowRight size={16} color="#1E293B" />
-                  </View>
+        {/* ACTIONS & LEDGER */}
+        <View style={[styles.mainLayout, { flexDirection: isDesktop ? 'row' : 'column' } as any]}>
+          
+          {/* RECENT ACTIVITY LEDGER */}
+          <View style={[styles.ledgerSection, { flex: isDesktop ? 1.5 : 1 }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>RECENT TELEMETRY</Text>
+              <TouchableOpacity onPress={() => router.push('/logs')}><Text style={styles.viewLink}>BROWSE ALL</Text></TouchableOpacity>
+            </View>
+
+            {isLoading ? (
+              <ActivityIndicator color="#4FD1C7" style={{ marginTop: 50 }} />
+            ) : recentJobs.length === 0 ? (
+              <GlassCard style={styles.emptyCard}>
+                <Terminal size={32} color="#1E293B" />
+                <Text style={styles.emptyText}>NO NODES PROVISIONED</Text>
+              </GlassCard>
+            ) : (
+              recentJobs.map((job, idx) => (
+                <Animated.View key={job.id} entering={FadeInDown.delay(300 + idx * 50)} layout={Layout.springify()}>
+                  <TouchableOpacity onPress={() => router.push(`/details/${job.id}`)}>
+                    <GlassCard style={styles.jobItem}>
+                      <View style={styles.jobCore}>
+                        <Text style={styles.jobUrl} numberOfLines={1}>{job.url}</Text>
+                        <Text style={styles.jobTime}>{new Date(job.created_at!).toLocaleTimeString()}</Text>
+                      </View>
+                      <View style={[styles.statusBadge, { 
+                        backgroundColor: job.status === 'completed' ? '#065F4630' : job.status === 'failed' ? '#991B1B30' : '#1E293B' 
+                      }]}>
+                        <Text style={[styles.statusText, { 
+                          color: job.status === 'completed' ? '#10B981' : job.status === 'failed' ? '#EF4444' : '#4FD1C7' 
+                        }]}>{(job.status || 'PENDING').toUpperCase()}</Text>
+                      </View>
+                      <ChevronRight size={18} color="#334155" />
+                    </GlassCard>
+                  </TouchableOpacity>
+                </Animated.View>
+              ))
+            )}
+          </View>
+
+          {/* QUICK PROTOCOLS (Desktop Sidebar Style) */}
+          {isDesktop && (
+            <View style={styles.quickActions}>
+              <Text style={styles.sectionTitle}>CORE_PROTOCOLS</Text>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/scraper')}>
+                <LinearGradient colors={['#4FD1C7', '#38B2AC']} style={styles.actionGradient}>
+                  <Zap size={20} color="#020617" fill="#020617" />
+                  <Text style={styles.actionText}>IGNITE NODE</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/bulk-dispatcher')}>
+                <GlassCard style={styles.actionGlass}>
+                  <Layers size={20} color="#4FD1C7" />
+                  <Text style={styles.actionTextLight}>BULK CLUSTER</Text>
                 </GlassCard>
               </TouchableOpacity>
-            </Animated.View>
-          ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -297,146 +191,34 @@ export default function IntelligenceHub() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { paddingTop: 48, paddingBottom: 150 },
-  topSection: { gap: 24, marginBottom: 40 },
-  statsColumn: { flex: 1, gap: 20 },
-  modernStatCard: {
-    padding: 28,
-    borderRadius: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
-  },
-  iconGlowBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statNumber: {
-    color: 'white',
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  statSubtitle: {
-    color: '#475569',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginTop: 4,
-  },
-  wideSpectrumCard: {
-    flex: 2,
-    padding: 32,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
-  },
-  spectrumHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  spectrumTitle: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 4,
-  },
-  liveTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(79, 209, 199, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  livePulse: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#4FD1C7',
-  },
-  liveText: { color: '#4FD1C7', fontSize: 9, fontWeight: '900' },
-  spectrumBody: {
-    height: 100,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  spectrumBar: { width: 7, borderRadius: 3.5 },
-  modernSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    marginBottom: 40,
-    height: 75,
-  },
-  modernInput: {
-    flex: 1,
-    paddingLeft: 16,
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  resultsGrid: { gap: 20 },
-  resultItemCard: { padding: 28, borderRadius: 32 },
-  resultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  urlBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(79, 209, 199, 0.05)',
-    padding: 8,
-    borderRadius: 10,
-    maxWidth: '75%',
-  },
-  urlLabel: { color: '#4FD1C7', fontSize: 11, fontWeight: '800' },
-  timeStamp: { color: '#334155', fontSize: 11, fontWeight: '700' },
-  previewData: {
-    color: '#94A3B8',
-    fontSize: 14,
-    lineHeight: 22,
-    marginBottom: 24,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  cardActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  badge: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-  },
-  badgeText: {
-    color: '#475569',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  emptyContainer: { alignItems: 'center', marginTop: 100, gap: 24 },
-  emptyText: {
-    color: '#1E293B',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 4,
-  },
+  scrollArea: { padding: 24, paddingBottom: 120 },
+  desktopPadding: { paddingHorizontal: 64 },
+  welcomeBox: { marginBottom: 40 },
+  welcomeTag: { color: '#4FD1C7', fontSize: 10, fontWeight: '900', letterSpacing: 4 },
+  operatorName: { color: 'white', fontSize: 36, fontWeight: '800', marginTop: 8 },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 20, marginBottom: 48 },
+  statCard: { padding: 24, borderRadius: 28, minHeight: 140, justifyContent: 'center' },
+  statHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  iconBox: { padding: 10, borderRadius: 14 },
+  statLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
+  statValue: { color: 'white', fontSize: 32, fontWeight: '700' },
+  mainLayout: { gap: 32 },
+  ledgerSection: { gap: 16 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { color: 'white', fontSize: 10, fontWeight: '900', letterSpacing: 3, marginBottom: 10 },
+  viewLink: { color: '#4FD1C7', fontSize: 11, fontWeight: '700' },
+  jobItem: { padding: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  jobCore: { flex: 1, gap: 4 },
+  jobUrl: { color: 'white', fontSize: 15, fontWeight: '700' },
+  jobTime: { color: '#475569', fontSize: 10, fontWeight: '600' },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginRight: 15 },
+  statusText: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  quickActions: { width: 300, gap: 16 },
+  actionBtn: { height: 70 },
+  actionGradient: { flex: 1, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  actionGlass: { flex: 1, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.03)' },
+  actionText: { color: '#020617', fontWeight: '900', letterSpacing: 1 },
+  actionTextLight: { color: 'white', fontWeight: '900', letterSpacing: 1 },
+  emptyCard: { padding: 80, alignItems: 'center', gap: 20, borderRadius: 32 },
+  emptyText: { color: '#1E293B', fontSize: 11, fontWeight: '900', letterSpacing: 2 }
 });

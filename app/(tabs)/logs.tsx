@@ -1,87 +1,71 @@
 /**
  * ============================================================================
- * 📡 NORTH INTELLIGENCE OS: SYSTEM TERMINAL V17.5 (ELITE UNIFIED)
+ * 📊 APEXSCRAPE: SYSTEM TELEMETRY (LOGS) V100.0
  * ============================================================================
+ * PATH: app/(tabs)/logs.tsx
  * ARCHITECTURE:
- * - GLOBAL TELEMETRY: Streams every 'scraping_logs' entry in real-time.
- * - ICON SYNTHESIS: 64px glow-boxes for system health.
- * - FORENSIC UX: Menlo/Monospace terminal stack with level-based tinting.
- * - TYPE-SAFE: 100% TS compliant with isolated handshake channels.
+ * - Real-time Handshake: Subscribes to public.scraping_logs broadcasts.
+ * - Trace Analysis: Detailed metadata inspection for failed nodes.
+ * - Reactive Filtering: Switch between INFO, SUCCESS, and ERROR levels.
  * ============================================================================
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
-  useWindowDimensions,
-  ActivityIndicator,
+  TouchableOpacity,
   Platform,
+  Alert,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   Terminal,
-  ShieldAlert,
-  Cpu,
-  Trash2,
   Activity,
+  AlertCircle,
+  Info,
+  CheckCircle2,
+  Trash2,
 } from 'lucide-react-native';
 
-// UI INTERNAL IMPORTS
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
 import { supabase } from '@/lib/supabase';
 import { Tables } from '@/supabase/database.types';
 
-type ScrapeLog = Tables<'scraping_logs'>;
+type Log = Tables<'scraping_logs'>;
 
-export default function SystemTerminal() {
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
+export default function LogsScreen() {
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [filter, setFilter] = useState<'all' | 'error' | 'success'>('all');
 
-  // --- TERMINAL STATE ---
-  const [logs, setLogs] = useState<ScrapeLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, errors: 0 });
-
-  // --- REAL-TIME AUDIT STREAM ---
-  const fetchLogs = useCallback(async () => {
-    const { data } = await supabase
+  const fetchLogs = async () => {
+    let query = supabase
       .from('scraping_logs')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(50);
+    if (filter === 'error') query = query.eq('level', 'error');
+    if (filter === 'success') query = query.eq('level', 'success');
 
-    if (data) {
-      setLogs(data);
-      setStats({
-        total: data.length,
-        errors: data.filter((l) => l.level === 'error').length,
-      });
-    }
-    setIsLoading(false);
-  }, []);
+    const { data } = await query;
+    setLogs(data || []);
+  };
 
   useEffect(() => {
     fetchLogs();
 
+    // Real-time listener for logs
     const channel = supabase
-      .channel('global-activity')
+      .channel('logs-sync')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'scraping_logs' },
-        (payload) => {
-          const newLog = payload.new as ScrapeLog;
-          setLogs((prev) => [newLog, ...prev].slice(0, 100));
-          setStats((s) => ({
-            total: s.total + 1,
-            errors: newLog.level === 'error' ? s.errors + 1 : s.errors,
-          }));
+        () => {
+          fetchLogs();
         },
       )
       .subscribe();
@@ -89,7 +73,18 @@ export default function SystemTerminal() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchLogs]);
+  }, [filter]);
+
+  const renderLevelIcon = (level: string | null) => {
+    switch (level) {
+      case 'error':
+        return <AlertCircle size={14} color="#F43F5E" />;
+      case 'success':
+        return <CheckCircle2 size={14} color="#10B981" />;
+      default:
+        return <Info size={14} color="#4FD1C7" />;
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -98,96 +93,64 @@ export default function SystemTerminal() {
         colors={['#020617', '#0A101F', '#020617']}
         style={StyleSheet.absoluteFill}
       />
-      <MainHeader title="System Activity" />
+      <MainHeader title="System Telemetry" />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollArea,
-          { paddingHorizontal: isDesktop ? 64 : 20 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* TELEMETRY METRICS */}
-        <View
-          style={[
-            styles.topSection,
-            { flexDirection: isDesktop ? 'row' : 'column' },
-          ]}
-        >
-          <GlassCard style={styles.modernStatCard}>
-            <View
+      {/* FILTER HUD */}
+      <View style={styles.filterRow}>
+        {(['all', 'success', 'error'] as const).map((type) => (
+          <TouchableOpacity
+            key={type}
+            onPress={() => setFilter(type)}
+            style={[
+              styles.filterBtn,
+              filter === type && {
+                backgroundColor: type === 'error' ? '#F43F5E30' : '#4FD1C730',
+                borderColor: type === 'error' ? '#F43F5E' : '#4FD1C7',
+              },
+            ]}
+          >
+            <Text
               style={[
-                styles.iconGlowBox,
-                { backgroundColor: 'rgba(79, 209, 199, 0.08)' },
+                styles.filterText,
+                filter === type && {
+                  color: type === 'error' ? '#F43F5E' : '#4FD1C7',
+                },
               ]}
             >
-              <Cpu size={24} color="#4FD1C7" />
-            </View>
-            <View>
-              <Text style={styles.statNumber}>{stats.total}</Text>
-              <Text style={styles.statSubtitle}>TOTAL HEARTBEATS                      </Text>
-            </View>
-          </GlassCard>
-
-          <GlassCard style={styles.modernStatCard}>
-            <View
-              style={[
-                styles.iconGlowBox,
-                { backgroundColor: 'rgba(239, 68, 68, 0.08)' },
-              ]}
-            >
-              <ShieldAlert size={24} color="#EF4444" />
-            </View>
-            <View>
-              <Text style={[styles.statNumber, { color: '#EF4444' }]}>
-                {stats.errors}
-              </Text>
-              <Text style={styles.statSubtitle}>CRITICAL FAULTS                            </Text>
-            </View>
-          </GlassCard>
-        </View>
-
-        {/* MASTER LOG FEED */}
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <GlassCard style={styles.terminalContainer}>
-            <View style={styles.terminalHeader}>
-              <View style={styles.headerTitleRow}>
-                <Terminal size={18} color="#4FD1C7" />
-                <Text style={styles.terminalTitle}>STREAM OUTPUT</Text>
+              {type.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity style={styles.clearLogsBtn} onPress={() => Alert.alert('Access Denied', 'This feature is restricted to admin operators.')}> 
+        <Trash2 size={16} color="#EF4444" />
+        <Text style={styles.clearLogsText}>CLEAR ALL LOGS</Text>
+      </TouchableOpacity>
+      {/* LOG GRID */}
+      <ScrollView contentContainerStyle={styles.scrollArea}>
+        {logs.map((log) => (
+          <GlassCard key={log.id} style={styles.logCard}>
+            <View style={styles.logHeader}>
+              <View style={styles.logTypeRow}>
+                {renderLevelIcon(log.level)}
+                <Text style={styles.logTime}>
+                  [{new Date(log.created_at!).toLocaleTimeString()}]
+                </Text>
               </View>
+              <Text style={styles.nodeId} numberOfLines={1}>
+                NODE: {log.job_id?.substring(0, 8) || 'SYSTEM'}
+              </Text>
             </View>
-
-            <View style={styles.terminalBody}>
-              {isLoading ? (
-                <View style={styles.centerBox}>
-                  <ActivityIndicator color="#4FD1C7" />
-                </View>
-              ) : (
-                logs.map((log, index) => (
-                  <View key={log.id || index} style={styles.logRow}>
-                    <Text style={styles.logTime}>
-                      [
-                      {new Date(log.created_at!).toLocaleTimeString([], {
-                        hour12: false,
-                      })}
-                      ]
-                    </Text>
-                    <Text
-                      style={[
-                        styles.logMsg,
-                        {
-                          color: log.level === 'error' ? '#EF4444' : '#E2E8F0',
-                        },
-                      ]}
-                    >
-                      {log.message}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </View>
+            <Text style={styles.logMessage}>{log.message}</Text>
+            {log.metadata && (
+              <View style={styles.metaBox}>
+                <Text style={styles.metaText}>
+                  {JSON.stringify(log.metadata).substring(0, 100)}...
+                </Text>
+              </View>
+            )}
           </GlassCard>
-        </Animated.View>
+        ))}
       </ScrollView>
     </View>
   );
@@ -195,69 +158,69 @@ export default function SystemTerminal() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { paddingTop: 48, paddingBottom: 150 },
-  topSection: { gap: 24, marginBottom: 40 },
- modernStatCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
+  scrollArea: { padding: 20, paddingBottom: 100 },
+  filterRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 64,
-    borderWidth: 16,
-    borderColor: 'rgba(255,255,255,0.03)',
+    gap: 10,
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
-  iconGlowBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#4FD1C7',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+  filterBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
   },
-  statNumber: { color: 'white', fontSize: 32, fontWeight: '600', letterSpacing: -1, marginTop: 24, },
-  statSubtitle: {
+  filterText: {
+    color: '#475569',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  logCard: {
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+  },
+  logHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  logTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logTime: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  nodeId: { color: '#334155', fontSize: 9, fontWeight: '700' },
+  logMessage: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  metaBox: {
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: '#020617',
+    borderRadius: 8,
+  },
+  metaText: {
     color: '#475569',
     fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  terminalContainer: { borderRadius: 32, overflow: 'hidden', minHeight: 600 },
-  terminalHeader: {
+  clearLogsBtn: {
     flexDirection: 'row',
-    borderRadius: 24,
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  terminalTitle: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 4,
-  },
-  terminalBody: { flex: 1, padding: 24 },
-  logRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  logTime: {
-    color: '#475569',
-    fontSize: 12,
-    fontWeight: '800',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  logMsg: {
-    fontSize: 12,
-    fontWeight: '600',
-    flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    lineHeight: 18,
-  },
-  centerBox: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 150,
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
+  clearLogsText: { color: '#EF4444', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+
 });

@@ -1,179 +1,243 @@
 /**
  * ============================================================================
- * 🧭 NORTH INTELLIGENCE OS: CLOUD CRAWLER V12.0 (ULTIMATE RESPONSIVE)
+ * 🌐 NORTH INTELLIGENCE OS: CLOUD CRAWLER ARCHITECT V100.0
  * ============================================================================
- * FEATURES:
- * - MOBILE ADAPTIVE: Flex-wrap logic to prevent input squishing on small screens.
- * - HYPER-GLASS: 32px hyper-rounded geometry with high-intensity blur.
- * - TITAN HANDSHAKE: Direct invocation of 'scrape-engine' Edge Function.
- * - SCHEMA BUILDER: Aligned with the local SchemaBuilder.tsx component.
+ * PATH: app/(tabs)/create.tsx
+ * PURPOSE: Provision and deploy autonomous extraction nodes.
+ * STANDARDS:
+ * - High-Fidelity UI: Glassmorphism inputs with Reanimated 4 transitions.
+ * - Deep Ledger Integration: Direct commit to public.scrapers table.
+ * - Type-Safe: Integrated with Database['public']['Tables']['scrapers'].
  * ============================================================================
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
+  StyleSheet,
   Alert,
   ActivityIndicator,
-  StyleSheet,
-  KeyboardAvoidingView,
   Platform,
-  useWindowDimensions,
-  ViewStyle,
-  TextStyle
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
-import { Globe, Zap, CheckCircle2, Cpu, ShieldAlert } from 'lucide-react-native';
+import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import {
+  Globe,
+  Terminal,
+  Zap,
+  Plus,
+  Database,
+  Cpu,
+  ArrowRight,
+} from 'lucide-react-native';
 
-// UI INTERNAL IMPORTS
+// INTERNAL INFRASTRUCTURE
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
-import { SchemaBuilder, SchemaField } from '@/components/scraper/SchemaBuilder';
-import { supabase } from '@/lib/supabase';
+import { SchemaBuilder } from '@/components/scraper/SchemaBuilder';
+import { TablesInsert } from '@/supabase/database.types';
 
-export default function CloudCrawler() {
+export default function CloudCrawlerArchitect() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { user } = useAuth();
+
+  // CORE STATE
+  const [name, setName] = useState('');
   const [url, setUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  const isDesktop = width >= 1024;
+  const [schema, setSchema] = useState<Record<string, string>>({});
+  const [isDeploying, setIsDeploying] = useState(false);
 
-  const [schemaMap, setSchemaMap] = useState<Record<string, string>>({
-    title: 'string',
-    price: 'string'
-  });
+  /**
+   * NODE DEPLOYMENT PROTOCOL
+   * Validates input and commits the new scraper node to the PostgreSQL ledger.
+   */
+  const handleDeployNode = async () => {
+    if (!name || !url) {
+      return Alert.alert(
+        'Handshake Refused',
+        'Please provide node designation and target URL.',
+      );
+    }
 
-  const initialFields: SchemaField[] = useMemo(() => [
-    { id: '1', key: 'title', type: 'string', description: 'Primary heading' },
-    { id: '2', key: 'price', type: 'string', description: 'Currency values' },
-  ], []);
+    if (!url.startsWith('http')) {
+      return Alert.alert(
+        'Protocol Fault',
+        'HTTPS designation required for secure ignition.',
+      );
+    }
 
-  const isUrlValid = useMemo(() => url.startsWith('http://') || url.startsWith('https://'), [url]);
+    if (!user) return Alert.alert('Security Fault', 'Operator unauthorized.');
 
-  const handleDeployment = useCallback(async () => {
-    if (!isUrlValid) return Alert.alert("Validation Fault", "Secure endpoint (HTTPS) required.");
-    setLoading(true);
+    setIsDeploying(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Unauthorized Operator.");
+      const payload: TablesInsert<'scrapers'> = {
+        name: name.trim(),
+        target_url: url.trim(),
+        extraction_schema: schema,
+        user_id: user.id,
+        status: 'active',
+        engine_type: 'gemini-1.5-pro',
+      };
 
-      // 1. Register Node in Ledger
-      const { data: job, error: dbError } = await supabase
-        .from('scraping_jobs')
-        .insert({
-          user_id: user.id,
-          url: url.trim(),
-          status: 'pending',
-          target_schema: schemaMap,
-        })
-        .select().single();
+      const { error } = await supabase.from('scrapers').insert(payload);
 
-      if (dbError) throw dbError;
+      if (error) throw error;
 
-      // 2. Titan-2 Engine Activation
-      const { error: funcError } = await supabase.functions.invoke('scrape-engine', {
-        body: { 
-          url: url.trim(), 
-          target_schema: schemaMap, 
-          job_id: job.id,
-          operator_id: user.id 
-        },
-      });
-
-      if (funcError) throw funcError;
-
-      router.replace('/(tabs)/');
+      Alert.alert(
+        'Deployment Successful',
+        `Node ${name} is now synchronized with the grid.`,
+      );
+      router.push('/(tabs)/');
     } catch (e: any) {
-      console.error("[CRAWLER_FAULT]", e.message);
-      Alert.alert("Engine Failure", e.message || "Target node unreachable.");
+      console.error('[TITAN-CRAWLER] Deployment Fault:', e.message);
+      Alert.alert('Deployment Failure', e.message);
     } finally {
-      setLoading(false);
+      setIsDeploying(false);
     }
-  }, [url, schemaMap, isUrlValid, router]);
+  };
 
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient colors={['#020617', '#0A101F', '#020617']} style={StyleSheet.absoluteFill} />
+      <LinearGradient
+        colors={['#020617', '#0A101F', '#020617']}
+        style={StyleSheet.absoluteFill}
+      />
       <MainHeader title="Cloud Crawler" />
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView 
-          contentContainerStyle={[styles.scrollContent, { paddingHorizontal: isDesktop ? 40 : 20 } as ViewStyle]}
-          showsVerticalScrollIndicator={false}
+      <ScrollView
+        contentContainerStyle={styles.scrollArea}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* DESIGNATION DECK */}
+        <Animated.View
+          entering={FadeInDown.delay(100)}
+          layout={Layout.springify()}
         >
-          <Animated.View entering={FadeInDown.delay(100)}>
-            <Text style={styles.pageTitle}>DEPLOY</Text>
-            <View style={styles.accentBar} />
-          </Animated.View>
+          <GlassCard style={styles.card}>
+            <View style={styles.labelRow}>
+              <Cpu size={16} color="#4FD1C7" />
+              <Text style={styles.labelText}>NODE DESIGNATION</Text>
+            </View>
+            <TextInput
+              style={styles.textInput}
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. TITAN-MARKET-ALPHA"
+              placeholderTextColor="#334155"
+              autoCapitalize="characters"
+            />
 
-          <Animated.View entering={FadeInDown.delay(200)}>
-            <GlassCard style={styles.inputCard}>
-              <View style={styles.cardHeader}>
-                <View style={styles.iconRow}>
-                  <Globe size={18} color="#4FD1C7" />
-                  <Text style={styles.cardLabel}>TARGET ENDPOINT</Text>
-                </View>
-                {isUrlValid && <Animated.View entering={ZoomIn}><CheckCircle2 size={16} color="#4FD1C7" /></Animated.View>}
-              </View>
+            <View style={[styles.labelRow, { marginTop: 20 }]}>
+              <Globe size={16} color="#4FD1C7" />
+              <Text style={styles.labelText}>TARGET ENDPOINT</Text>
+            </View>
+            <TextInput
+              style={styles.textInput}
+              value={url}
+              onChangeText={setUrl}
+              placeholder="https://target-node.ext"
+              placeholderTextColor="#334155"
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </GlassCard>
+        </Animated.View>
 
-              <TextInput
-                style={styles.textInput}
-                placeholder="https://target-ledger.com"
-                placeholderTextColor="#334155"
-                value={url}
-                onChangeText={setUrl}
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-            </GlassCard>
-          </Animated.View>
+        {/* BLUEPRINT DECK */}
+        <Animated.View
+          entering={FadeInDown.delay(200)}
+          layout={Layout.springify()}
+        >
+          <GlassCard style={styles.card}>
+            <View style={styles.labelRow}>
+              <Database size={16} color="#A78BFA" />
+              <Text style={[styles.labelText, { color: '#A78BFA' }]}>
+                EXTRACTION BLUEPRINT
+              </Text>
+            </View>
+            <SchemaBuilder onSchemaChange={setSchema} />
+          </GlassCard>
+        </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(300)}>
-             <SchemaBuilder initialFields={initialFields} onSchemaChange={setSchemaMap} />
-          </Animated.View>
-
-          <Animated.View entering={FadeInDown.delay(400)}>
-            <TouchableOpacity
-              onPress={handleDeployment}
-              disabled={!isUrlValid || loading}
-              activeOpacity={0.8}
-              style={[styles.deployBtn, (!isUrlValid || loading) && styles.deployBtnDisabled]}
-            >
-              {loading ? <ActivityIndicator color="#020617" /> : (
-                <View style={styles.btnContent}>
-                  <Text style={styles.btnText}>INITIALIZE TITAN NODE</Text>
-                  <Zap size={20} color="#020617" fill="#020617" />
-                </View>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* DEPLOYMENT ACTION */}
+        <TouchableOpacity
+          onPress={handleDeployNode}
+          disabled={isDeploying}
+          style={[styles.deployBtn, isDeploying && { opacity: 0.5 }]}
+        >
+          {isDeploying ? (
+            <ActivityIndicator color="#020617" />
+          ) : (
+            <>
+              <Zap size={20} color="#020617" fill="#020617" />
+              <Text style={styles.deployText}>DEPLOY NODE</Text>
+              <ArrowRight size={20} color="#020617" />
+            </>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollContent: { paddingTop: 40, paddingBottom: 150 },
-  pageTitle: { color: 'white', fontSize: 48, fontWeight: '900', fontStyle: 'italic', letterSpacing: -2 },
-  accentBar: { height: 4, width: 60, backgroundColor: '#4FD1C7', borderRadius: 2, marginBottom: 40, marginTop: 8 },
-  inputCard: { padding: 32, borderRadius: 32, marginBottom: 32, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  iconRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardLabel: { color: '#4FD1C7', fontSize: 10, fontWeight: '900', letterSpacing: 2 },
-  textInput: { backgroundColor: 'rgba(255,255,255,0.03)', padding: 24, borderRadius: 20, color: 'white', fontSize: 18, fontWeight: '700', borderContents: 1, borderColor: 'rgba(255,255,255,0.08)' } as any,
-  deployBtn: { height: 84, borderRadius: 32, backgroundColor: '#4FD1C7', shadowColor: '#4FD1C7', shadowOpacity: 0.4, shadowRadius: 20, elevation: 10, marginTop: 20, overflow: 'hidden', justifyContent: 'center' },
-  deployBtnDisabled: { backgroundColor: '#1E293B', shadowOpacity: 0 },
-  btnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  btnText: { color: '#020617', fontSize: 16, fontWeight: '900', letterSpacing: 2, fontStyle: 'italic' },
+  scrollArea: { padding: 24, paddingBottom: 120 },
+  card: {
+    padding: 24,
+    borderRadius: 32,
+    marginBottom: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  labelText: {
+    color: '#4FD1C7',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  textInput: {
+    backgroundColor: '#020617',
+    padding: 20,
+    borderRadius: 16,
+    color: 'white',
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  deployBtn: {
+    backgroundColor: '#4FD1C7',
+    height: 75,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 15,
+    marginTop: 10,
+    shadowColor: '#4FD1C7',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  deployText: {
+    color: '#020617',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
 });

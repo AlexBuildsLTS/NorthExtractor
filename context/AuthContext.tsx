@@ -1,11 +1,14 @@
 /**
  * ============================================================================
- * 🛡️ NORTH INTELLIGENCE OS: AUTH CONTEXT V18.5 (ELITE)
+ * 🔐 NORTH INTELLIGENCE OS: TITAN-CORE AUTH PROVIDER V11.0 (FINAL RESTORATION)
  * ============================================================================
- * FEATURES:
- * - PROFILE_MERGE: Synchronizes Auth data with 'profiles' table records.
- * - EVENT_DEBOUNCE: Functional state checks to prevent update loops.
- * - FORENSIC_ERROR_HANDLING: Caught faults logged to terminal core.
+ * PATH: context/AuthContext.tsx
+ * PURPOSE: Global identity orchestration and profile synthesis.
+ * FIXES:
+ * - TS Error Fix: Omits standard 'role' to allow Database enum alignment.
+ * - Profile Restoration: Restores full_name and avatar_url synchronization.
+ * - Dual-Naming Support: Exports both logout and signOut for UI stability.
+ * - Type-Strict: 1:1 mapping with provided database.types.ts.
  * ============================================================================
  */
 
@@ -16,110 +19,162 @@ import React, {
   useState,
   useCallback,
 } from 'react';
+import { Alert } from 'react-native';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import { Database, Tables } from '@/supabase/database.types';
 
-type AuthContextType = {
+// Extract strict types from your provided Schema
+type Profile = Tables<'profiles'>;
+type UserRole = Database['public']['Enums']['user_role'];
+
+/**
+ * OPERATOR STATE (TYPE-STRICT RESTORATION)
+ * We omit 'role' from the base User to prevent the intersection crash
+ * with your custom enum-based role system.
+ */
+interface OperatorState extends Omit<User, 'role'> {
+  fullName: string | null;
+  avatarUrl: string | null;
+  role: UserRole | null;
+  proxyConfig: Profile['proxy_config'];
+  webhookUrl: string | null;
+}
+
+interface AuthContextInterface {
   session: Session | null;
-  user: any | null;
+  user: OperatorState | null;
   isLoading: boolean;
+  refreshIdentity: () => Promise<void>;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-};
+  signOut: () => Promise<void>;
+}
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextInterface | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<OperatorState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    if (error) console.error('[AUTH_SYNC_FAULT]', error.message);
-    return data;
+  /**
+   * REFRESH IDENTITY
+   * Pulls data directly from your public.profiles ledger.
+   * Restores the 'destroyed' profile and avatar linkage.
+   */
+  const refreshIdentity = useCallback(async () => {
+    try {
+      const {
+        data: { session: currentSession },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
+      if (!currentSession) {
+        setSession(null);
+        setUser(null);
+        return;
+      }
+
+      setSession(currentSession);
+
+      // Fetch from profiles using provided schema
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentSession.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('[TITAN-AUTH] Profile sync fault:', profileError.message);
+      }
+
+      // Map DB columns to the high-fidelity UI requirements
+      const synthesizedUser: OperatorState = {
+        ...currentSession.user,
+        fullName:
+          profile?.full_name ||
+          currentSession.user.user_metadata?.full_name ||
+          'Operator',
+        avatarUrl: profile?.avatar_url || null,
+        role: (profile?.role as UserRole) || 'Member',
+        proxyConfig: profile?.proxy_config || null,
+        webhookUrl: profile?.webhook_url || null,
+      };
+
+      setUser(synthesizedUser);
+    } catch (err: any) {
+      console.error('[TITAN-CORE] Ledger Connection Fault:', err.message);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const refreshProfile = useCallback(
-    async (targetSession: Session) => {
-      if (!targetSession?.user) return;
-      const profile = await fetchProfile(targetSession.user.id);
-      setUser({
-        ...targetSession.user,
-        ...profile,
-        name: profile?.full_name,
-        avatar: profile?.avatar_url,
-      });
-    },
-    [fetchProfile],
-  );
-
+  /**
+   * SYSTEM INITIALIZATION
+   * Synchronizes with real-time auth events.
+   */
   useEffect(() => {
-    // 1. Initial Handshake
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session: initialSession } }) => {
-        setSession(initialSession);
-        if (initialSession) await refreshProfile(initialSession);
-        setIsLoading(false);
-      });
+    refreshIdentity();
 
-    // 2. Real-Time Pulse Listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log(`[AUTH_EVENT]: ${event}`);
-
-      setSession(newSession);
+      console.log(`[TITAN-EVENT] Auth: ${event}`);
       if (newSession) {
-        await refreshProfile(newSession);
+        setSession(newSession);
+        await refreshIdentity();
       } else {
+        setSession(null);
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [refreshProfile]);
+  }, [refreshIdentity]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user,
-        isLoading,
-        refreshProfile: () =>
-          session ? refreshProfile(session) : Promise.resolve(),
-        login: async (email, pass) => {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password: pass,
-          });
-          if (error) throw error;
-        },
-        logout: async () => {
-          console.log('Logging out...');
-          const { error } = await supabase.auth.signOut();
-          if (error) {
-            console.error('Error logging out:', error);
-            throw error;
-          }
-          console.log('Successfully logged out');
-        },
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  /**
+   * TERMINATION PROTOCOL
+   */
+  const terminateSession = async () => {
+    try {
+      setIsLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (err: any) {
+      Alert.alert('Security Fault', 'Termination failed: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const value = {
+    session,
+    user,
+    isLoading,
+    refreshIdentity,
+    login: async (email: string, pass: string) => {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pass,
+      });
+      if (error) throw error;
+    },
+    logout: terminateSession,
+    signOut: terminateSession,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  if (context === undefined) {
+    throw new Error('useAuth must be executed within an AuthProvider scope.');
+  }
   return context;
 };

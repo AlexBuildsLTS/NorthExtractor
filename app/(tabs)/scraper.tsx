@@ -1,598 +1,213 @@
 /**
  * ============================================================================
- * ⚡ NORTH INTELLIGENCE OS: DIRECT SCRAPER V15.5 (ULTIMATE INTEGRATED)
+ * 🛰️ NORTH INTELLIGENCE OS: SCRAPER TERMINAL (REAL-TIME WIRING)
  * ============================================================================
- * ENGINE ARCHITECTURE:
- * - CSS CONFIG DRAWER: Integrated manual DOM targeting override.
- * - RECURSIVE ENGINE: Renders deep node clusters via RecursiveDataNode.
- * - DYNAMIC SWITCHING: Automatically uses CSS Map if defined, else AI-Auto.
- * - TELEMETRY: Real-time isolated handshake channels for Job_ID.
- * - ADAPTIVE GRID: Dynamically stacks terminal panes for mobile fidelity.
+ * PATH: app/(tabs)/scraper.tsx
+ * FEATURES:
+ * - Direct Node Ignition: Triggers the Supabase Edge 'scrape-engine'.
+ * - Live Harvest Feed: Subscribes to the 'harvested_data' ledger.
+ * - Industrial UI: Staggered spring animations for cluster nodes.
  * ============================================================================
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   ActivityIndicator,
   Alert,
   StyleSheet,
-  useWindowDimensions,
-  Platform,
-  ViewStyle,
-  TextStyle,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeInDown,
-  FadeInRight,
-  LinearTransition,
-} from 'react-native-reanimated';
+import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
 import {
-  Globe,
-  Terminal,
-  Database,
-  Play,
-  Copy,
-  RefreshCcw,
-  Cpu,
-  Activity,
-  Crosshair,
   Zap,
-  ShieldCheck,
-  Search,
+  Globe,
+  Database,
+  Terminal,
+  CheckCircle2,
+  Play,
 } from 'lucide-react-native';
 
-// UI INTERNAL IMPORTS
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
-import { RecursiveDataNode } from '@/components/scraper/RecursiveDataNode';
-import { CssConfigDrawer } from '@/components/scraper/CssConfigDrawer';
-import { supabase } from '@/lib/supabase';
 import { Tables } from '@/supabase/database.types';
 
-type ScrapeLog = Tables<'scraping_logs'>;
+type Scraper = Tables<'scrapers'>;
 
-export default function DirectScraper() {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 1024;
-  const logScrollRef = useRef<ScrollView>(null);
+export default function ScraperTerminal() {
+  const { user } = useAuth();
+  const [scrapers, setScrapers] = useState<Scraper[]>([]);
+  const [ignitingId, setIgnitingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // --- CORE SYSTEM STATE ---
-  const [url, setUrl] = useState('');
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<ScrapeLog[]>([]);
-  const [payload, setPayload] = useState<any>(null);
-  const [customSelectors, setCustomSelectors] = useState<Record<
-    string,
-    string
-  > | null>(null);
+  const fetchScrapers = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('scrapers')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  // --- REAL-TIME BROADCAST HANDSHAKE ---
+      if (error) throw error;
+      setScrapers(data || []);
+    } catch (e: any) {
+      console.error('[TITAN-SCRAPER] Data Fault:', e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!activeJobId) return;
-
-    // Establishing isolated telemetry channel strictly for this JOB_ID
+    fetchScrapers();
     const channel = supabase
-      .channel(`node-telemetry-${activeJobId}`)
+      .channel('realtime-scrapers')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'scraping_logs',
-          filter: `job_id=eq.${activeJobId}`,
-        },
-        (p) => {
-          setLogs((prev) => [...prev, p.new as ScrapeLog]);
-          // Forensic log auto-scroll
-          logScrollRef.current?.scrollToEnd({ animated: true });
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'scraping_jobs',
-          filter: `id=eq.${activeJobId}`,
-        },
-        (p: any) => {
-          if (p.new.status === 'completed') fetchFinalPayload(activeJobId);
-          if (p.new.status === 'failed') {
-            setIsExecuting(false);
-            Alert.alert(
-              'Engine Error',
-              'Node extraction failed or target rejected connection.',
-            );
-          }
-        },
+        { event: '*', schema: 'public', table: 'scrapers' },
+        fetchScrapers,
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeJobId]);
+  }, [fetchScrapers]);
 
-  const fetchFinalPayload = async (id: string) => {
-    const { data } = await supabase
-      .from('extracted_data')
-      .select('content_structured')
-      .eq('job_id', id)
-      .single();
-
-    if (data) setPayload(data.content_structured);
-    setIsExecuting(false);
-  };
-
-  // --- TITAN-2 ENGINE ACTIVATION ---
-  const handleExecuteExtraction = async () => {
-    if (!url.startsWith('http'))
-      return Alert.alert(
-        'Protocol fault',
-        'HTTPS designation required for secure ignition.',
-      );
-
-    setIsExecuting(true);
-    setLogs([]);
-    setPayload(null);
-
+  const runExtraction = async (scraper: Scraper) => {
+    setIgnitingId(scraper.id);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user)
-        throw new Error('Operator identity is unknown in current session.');
-
-      // 1. COMMIT JOB TO LEDGER
-      const { data: job, error: jobErr } = await supabase
-        .from('scraping_jobs')
-        .insert({
-          url: url.trim(),
-          user_id: user.id,
-          status: 'running',
-          target_schema: customSelectors || {
-            summary: 'string',
-            clusters: 'array',
-            technical: 'object',
-          },
-        })
-        .select()
-        .single();
-
-      if (jobErr) throw jobErr;
-      setActiveJobId(job.id);
-
-      // 2. TRIGGER EDGE HANDSHAKE WITH CORE FLAGS
-      const { error: funcError } = await supabase.functions.invoke(
-        'scrape-engine',
-        {
-          body: {
-            url: url.trim(),
-            job_id: job.id,
-            operator_id: user.id,
-            config: {
-              neural_parsing: !customSelectors,
-              javascript_enabled: true,
-              high_fidelity: true,
-            },
-          },
+      // WIRING: Direct call to your Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('scrape-engine', {
+        body: {
+          scraper_id: scraper.id,
+          url: scraper.target_url,
+          schema: scraper.extraction_schema,
         },
-      );
+      });
 
-      if (funcError) throw funcError;
-    } catch (e: any) {
-      setIsExecuting(false);
+      if (error) throw error;
       Alert.alert(
-        'Engine Fault',
-        e.message || 'Target node ignition sequence failed.',
+        'Extraction Initialized',
+        `Node ${scraper.name} has begun harvesting data.`,
       );
+    } catch (e: any) {
+      Alert.alert('Ignition Failure', e.message);
+    } finally {
+      setIgnitingId(null);
     }
   };
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient
-        colors={['#020617', '#0A101F', '#020617']}
+        colors={['#020617', '#0A101F']}
         style={StyleSheet.absoluteFill}
       />
-      <MainHeader title="Direct Scraper" />
+      <MainHeader title="DIRECT SCRAPER" />
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollArea,
-          { paddingHorizontal: isDesktop ? 40 : 16 } as ViewStyle,
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* CONTROL DECK */}
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <GlassCard style={styles.controlDeck}>
-            <View style={styles.deckHeader}>
-              <View style={styles.labelRow}>
-                <Globe size={18} color="#4FD1C7" />
-                <Text style={styles.labelText}>ENDPOINT</Text>
-              </View>
-              {isExecuting && (
-                <ActivityIndicator size="small" color="#4FD1C7" />
-              )}
-            </View>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.textInput}
-                value={url}
-                onChangeText={setUrl}
-                placeholder="https://scrape.com"
-                placeholderTextColor="#334155"
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-              <TouchableOpacity
-                onPress={handleExecuteExtraction}
-                disabled={isExecuting || !url}
-                style={[
-                  styles.playBtn,
-                  (isExecuting || !url) && styles.btnDisabled,
-                ]}
-              >
-                <Play size={26} color="#020617" fill="#020617" />
-              </TouchableOpacity>
-            </View>
-          </GlassCard>
+      <ScrollView contentContainerStyle={styles.scrollArea}>
+        <Animated.View entering={FadeInUp} style={styles.header}>
+          <Text style={styles.sysTag}>CLUSTER_HUD_ACTIVE</Text>
+          <Text style={styles.title}>Deployment Nodes</Text>
         </Animated.View>
 
-        {/* CSS CONFIG OVERRIDE DRAWER */}
-        <Animated.View entering={FadeInDown.delay(150)}>
-          <CssConfigDrawer onConfigSave={setCustomSelectors} />
-        </Animated.View>
+        {loading ? (
+          <ActivityIndicator color="#4FD1C7" style={{ marginTop: 100 }} />
+        ) : (
+          scrapers.map((item, idx) => (
+            <Animated.View
+              key={item.id}
+              entering={FadeInUp.delay(idx * 100)}
+              layout={Layout.springify()}
+            >
+              <GlassCard intensity={40} style={styles.nodeCard}>
+                <View style={styles.nodeCore}>
+                  <View style={styles.iconBox}>
+                    <Globe size={22} color="#4FD1C7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nodeName}>{item.name}</Text>
+                    <Text style={styles.nodeUrl} numberOfLines={1}>
+                      {item.target_url}
+                    </Text>
+                  </View>
+                </View>
 
-        {/* RESPONSIVE HUD LAYOUT */}
-        <View
-          style={[
-            styles.terminalLayout,
-            { flexDirection: isDesktop ? 'row' : 'column' } as ViewStyle,
-          ]}
-        >
-          {/* TERMINAL: OUTPUT STREAM */}
-          <Animated.View entering={FadeInDown.delay(200)} style={styles.column}>
-            <GlassCard style={styles.logCard}>
-              <View style={styles.terminalHeader}>
-                <Terminal size={14} color="#4FD1C7" />
-                <Text style={styles.terminalLabel}>STREAM</Text>
-                {isExecuting && <View style={styles.pulseActive} />}
-              </View>
-              <ScrollView
-                ref={logScrollRef}
-                style={styles.terminalBody}
-                showsVerticalScrollIndicator={true}
-              >
-                {logs.length === 0 && !isExecuting && (
-                  <View style={styles.emptyBox}>
-                    <Search size={32} color="#1E293B" />
-                    <Text style={styles.emptyTerminal}>
-                      AWAITING HANDSHAKE...
-                    </Text>
-                  </View>
-                )}
-                {logs.map((log, i) => (
-                  <View key={i} style={styles.logEntry}>
-                    <Text style={styles.logTime}>
-                      [
-                      {new Date(log.created_at!).toLocaleTimeString([], {
-                        hour12: false,
-                      })}
-                      ]
-                    </Text>
-                    <Text
-                      style={[
-                        styles.logMsg,
-                        {
-                          color: log.level === 'error' ? '#EF4444' : '#E2E8F0',
-                        },
-                      ]}
-                    >
-                      {log.message}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </GlassCard>
-          </Animated.View>
+                <View style={styles.divider} />
 
-          {/* HUD: NEURAL SYNTHESIS PAYLOAD */}
-          <Animated.View
-            entering={FadeInRight.delay(300)}
-            style={styles.column}
-          >
-            <GlassCard style={styles.payloadCard}>
-              <View style={styles.terminalHeader}>
-                <Database size={16} color="#4FD1C7" />
-                <Text style={styles.terminalLabel}>PAYLOAD</Text>
-                {payload && (
-                  <TouchableOpacity
-                    onPress={() =>
-                      Alert.alert(
-                        'Copied',
-                        'Data committed to system clipboard.',
-                      )
-                    }
-                  >
-                    <Copy
-                      size={14}
-                      color="#4FD1C7"
-                      style={{ marginLeft: 'auto' }}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <ScrollView
-                style={styles.payloadBody}
-                showsVerticalScrollIndicator={true}
-              >
-                {!payload && !isExecuting && (
-                  <View style={styles.placeholderBox}>
-                    <Cpu size={40} color="#1E293B" />
-                    <Text style={styles.placeholderText}>LEDGER_IDLE</Text>
-                  </View>
-                )}
-                {isExecuting && !payload && (
-                  <View style={styles.analyzingBox}>
-                    <RefreshCcw size={32} color="#4FD1C7" />
-                    <Text style={styles.analyzingText}>
-                      NEURAL_ANALYSIS_IN_PROGRESS...
-                    </Text>
-                  </View>
-                )}
-
-                {/* HIGH-FIDELITY RECURSIVE DATA TREE */}
-                {payload && <RecursiveDataNode data={payload} />}
-              </ScrollView>
-            </GlassCard>
-          </Animated.View>
-        </View>
+                <TouchableOpacity
+                  onPress={() => runExtraction(item)}
+                  disabled={ignitingId === item.id}
+                  style={styles.igniteBtn}
+                >
+                  {ignitingId === item.id ? (
+                    <ActivityIndicator size="small" color="#020617" />
+                  ) : (
+                    <>
+                      <Zap size={16} color="#020617" fill="#020617" />
+                      <Text style={styles.igniteText}>RUN EXTRACTION</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </GlassCard>
+            </Animated.View>
+          ))
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  modernStatCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 64,
-    borderWidth: 16,
-    borderColor: 'rgba(255,255,255,0.03)',
-  },
-  iconGlowBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#4FD1C7',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-  },
-  statNumber: { color: 'white', fontSize: 24, fontWeight: '600', letterSpacing: -1, marginTop: 24 },
-  statSubtitle: { color: '#475569', fontSize: 9, fontWeight: '600', letterSpacing: 2, marginTop: 24 },
-  wideSpectrumCard: {
-    flex: 3,
-    padding: 32,
-    borderRadius: 62, 
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
-    },
-  spectrumHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  spectrumTitle: {
-    color: 'white',
-    fontSize: 11,
+  root: { flex: 1, backgroundColor: '#020617' },
+  scrollArea: { padding: 32, paddingBottom: 100 },
+  header: { marginBottom: 40 },
+  sysTag: {
+    color: '#4FD1C7',
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 4,
   },
-  liveTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  title: { color: 'white', fontSize: 40, fontWeight: '900', marginTop: 12 },
+  nodeCard: {
+    padding: 32,
+    borderRadius: 48,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  nodeCore: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  iconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 20,
     backgroundColor: 'rgba(79, 209, 199, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  livePulse: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#4FD1C7',
-  },
-  liveText: { color: '#4FD1C7', fontSize: 9, fontWeight: '900' },
-  spectrumBody: {
-    height: 100,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  spectrumBar: { width: 7, borderRadius: 3.5 },
-  root: { flex: 3, backgroundColor: '#020617' },
-  scrollArea: { paddingTop: 32, paddingBottom: 150 }, 
-  controlDeck: {
-    padding: 24,
-    borderRadius: 32,
-    marginBottom: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: 'rgba(79, 209, 199, 0.1)',
-  },
-  deckHeader: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
   },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  labelText: {
-    color: '#4FD1C7',
-    fontSize: 12,
-    fontWeight: '900',  
-    letterSpacing: 3,
-    marginTop: 24,
-    marginBottom: 24,
+  nodeName: { color: 'white', fontSize: 20, fontWeight: '800' },
+  nodeUrl: { color: '#475569', fontSize: 14, marginTop: 4 },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginVertical: 24,
   },
-  inputContainer: { flexDirection: 'row', gap: 16, alignItems: 'center' },
-  textInput: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    padding: 24,
-    borderRadius: 64,
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '700',  
-  },
-  playBtn: {
-    borderRadius: 32,
-    padding: 16,
-    width: 64,
+  igniteBtn: {
     height: 64,
     backgroundColor: '#4FD1C7',
-    alignItems: 'center',
-    justifyContent: 'center', 
-    shadowColor: '#4FD1C7',
-    shadowOpacity: 0.3, 
-    shadowRadius: 15,
-  },
-  btnDisabled: { backgroundColor: '#1E293B', shadowOpacity: 0 },
-  terminalLayout: { gap: 24 },
-  column: { flex: 1 },
-  logCard: {
-    height: 450,
-    borderRadius: 32,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
-  },
-  payloadCard: {
-    height: 450,
-    borderRadius: 32,
-    padding: 24,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.03)',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  terminalHeader: {
-    flex: 1,
+    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
     gap: 12,
-    borderRadius: 32,
   },
-  terminalLabel: {
-    color: 'white',
-    fontSize: 10,
+  igniteText: {
+    color: '#020617',
     fontWeight: '900',
-    letterSpacing: 4,
-  },
-  pulseActive: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4FD1C7',
-    marginLeft: 'auto',
-    shadowColor: '#4FD1C7', 
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-  },
-  terminalBody: { flex: 1, padding: 16 },
-  logEntry: { flexDirection: 'row', marginBottom: 8, gap: 12 },
-  logTime: {
-    color: '#475569',
-    fontSize: 10,
-    fontWeight: '800',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  logMsg: {
-    fontSize: 11,
-    fontWeight: '600',
-    flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    lineHeight: 16,
-  },
-  emptyBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 120,
-    gap: 20,
-  },
-  emptyTerminal: {
-    color: '#1E293B',
-    fontSize: 11,
-    fontWeight: '900',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  payloadBody: { flex: 1 },
-  placeholderBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 120,
-    gap: 20,
-  },
-  statCard: {
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  statLabel: {
-    color: '#475569',
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 15,
     letterSpacing: 1,
-  },
-  statValue: { color: 'white', fontSize: 20, fontWeight: '700', letterSpacing: -1 
-  },
-  placeholderText: {
-    color: '#1E293B',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 4,
-  },
-  analyzingBox: { alignItems: 'center', marginTop: 120, gap: 24 },
-  analyzingText: {
-    color: '#4FD1C7',
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 2,
   },
 });
