@@ -1,7 +1,20 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "lib": ["deno.window", "deno.ns"]
+    "lib": ["deno.ns", "deno.window"],
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
   },
-  "importMap": "import_map.json"
+  "lint": {
+    "rules": {
+      "exclude": ["no-explicit-any"]
+    }
+  },
+  "imports": {
+    "https://deno.land/std/": "https://deno.land/std@0.200.0/",
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@^2.43.5",
+    "@google/generative-ai": "npm:@google/generative-ai@^0.24.1",
+    "cors": "https://deno.land/x/cors@v1.2.2/mod.ts",
+    "crypto-js": "https://esm.sh/crypto-js@4.2.0"
+  }
 }

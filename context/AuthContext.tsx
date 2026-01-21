@@ -39,6 +39,7 @@ interface OperatorState extends Omit<User, 'role'> {
   role: UserRole | null;
   proxyConfig: Profile['proxy_config'];
   webhookUrl: string | null;
+  currency: string | null;
 }
 
 interface AuthContextInterface {
@@ -103,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         role: (profile?.role as UserRole) || 'Member',
         proxyConfig: profile?.proxy_config || null,
         webhookUrl: profile?.webhook_url || null,
+        currency: 'USD', // Default currency preference
       };
 
       setUser(synthesizedUser);

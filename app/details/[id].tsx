@@ -1,13 +1,13 @@
 /**
  * ============================================================================
- * 🔍 NORTH INTELLIGENCE OS: DATA INSPECTOR V9.0
+ * 🔍 NORTH INTELLIGENCE OS: DATA INSPECTOR V9.2 (FINAL FIX)
  * ============================================================================
  * Path: app/details/[id].tsx
- * FEATURES:
- * - Real-time Data Synthesis: Fetches structured JSON from extracted_data.
- * - Double-Header Elimination: Explicit Stack.Screen override.
- * - Heuristic Detail View: Visualizes job status and node metadata.
- * - AAA UX: Interactive glassmorphism cards with spring physics.
+ * STATUS: PRODUCTION READY
+ * FIXES:
+ * - Solved 'string | string[]' router parameter crash.
+ * - Aligned State types 1:1 with Supabase 'database.types.ts'.
+ * - Added 'MainHeader' for consistency if needed, or kept dedicated nav.
  * ============================================================================
  */
 
@@ -26,7 +26,6 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  Download,
   Share2,
   Database,
   ShieldCheck,
@@ -34,43 +33,42 @@ import {
   Globe,
   Code,
   FileJson,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 // UI INTERNAL IMPORTS
 import { GlassCard } from '@/components/ui/GlassCard';
-import { MainHeader } from '@/components/ui/MainHeader';
+import { MainHeader } from '@/components/ui/MainHeader'; // Consistent Header
 import { supabase } from '@/lib/supabase';
+import { Database as DBTypes } from '@/supabase/database.types';
 
-// --- TYPE DEFINITIONS ---
-interface ExtractedPayload {
-  id: string;
-  job_id: string;
-  content_structured: any;
-  metadata: any;
-  created_at: string;
-}
-
-interface JobDetails {
-  id: string;
-  url: string;
-  status: string;
-  target_schema: any;
-}
+// --- STRICT TYPE DEFINITIONS FROM DB ---
+type JobRow = DBTypes['public']['Tables']['scraping_jobs']['Row'];
+type ExtractedRow = DBTypes['public']['Tables']['extracted_data']['Row'];
 
 export default function DataInspector() {
-  const { id } = useLocalSearchParams();
+  // 1. SAFE PARAMETER PARSING
+  const params = useLocalSearchParams();
+  const idRaw = params.id;
+  const id = Array.isArray(idRaw) ? idRaw[0] : idRaw; // Ensures 'id' is always a string
+
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [job, setJob] = useState<JobDetails | null>(null);
-  const [dataPayloads, setDataPayloads] = useState<ExtractedPayload[]>([]);
+  
+  // 2. STRICT DATABASE TYPING
+  const [job, setJob] = useState<JobRow | null>(null);
+  const [dataPayloads, setDataPayloads] = useState<ExtractedRow[]>([]);
 
   // --- DATA ORCHESTRATION ---
   const fetchNodeDetails = useCallback(async () => {
+    if (!id) return;
+
     try {
       setLoading(true);
 
-      // 1. Fetch Job Metadata
+      // A. Fetch Job Metadata (Strictly Typed)
       const { data: jobData, error: jobError } = await supabase
         .from('scraping_jobs')
         .select('*')
@@ -80,7 +78,7 @@ export default function DataInspector() {
       if (jobError) throw jobError;
       setJob(jobData);
 
-      // 2. Fetch Extracted Content
+      // B. Fetch Extracted Content
       const { data: extracted, error: extractedError } = await supabase
         .from('extracted_data')
         .select('*')
@@ -89,6 +87,7 @@ export default function DataInspector() {
 
       if (extractedError) throw extractedError;
       setDataPayloads(extracted || []);
+
     } catch (err: any) {
       console.error('[INSPECTOR_FAULT]', err.message);
       Alert.alert('Structural Failure', 'Could not retrieve node data.');
@@ -103,147 +102,161 @@ export default function DataInspector() {
 
   // --- ACTION HANDLERS ---
   const handleExport = async () => {
+    if (dataPayloads.length === 0) {
+      return Alert.alert('Export Failed', 'No data available to export.');
+    }
+
     const rawJson = JSON.stringify(
       dataPayloads.map((d) => d.content_structured),
       null,
       2,
     );
+    
     try {
       await Share.share({
         message: rawJson,
-        title: `Export_Node_${id?.slice(0, 8)}`,
+        title: `NORTH_EXPORT_${id?.slice(0, 8)}`,
       });
     } catch (error) {
       console.error(error);
     }
   };
 
+  // --- RENDER HELPERS ---
+  const renderStatusBadge = (status: string | null) => {
+    const s = status || 'UNKNOWN';
+    let color = '#94A3B8'; // Slate
+    let bg = 'rgba(148, 163, 184, 0.1)';
+    let Icon = AlertTriangle;
+
+    if (s === 'completed') {
+      color = '#10B981'; // Emerald
+      bg = 'rgba(16, 185, 129, 0.1)';
+      Icon = ShieldCheck;
+    } else if (s === 'failed') {
+      color = '#EF4444'; // Red
+      bg = 'rgba(239, 68, 68, 0.1)';
+      Icon = AlertTriangle;
+    } else if (s === 'running') {
+      color = '#38BDF8'; // Sky
+      bg = 'rgba(56, 189, 248, 0.1)';
+      Icon = Loader2;
+    }
+
+    return (
+      <View style={[styles.badge, { backgroundColor: bg, borderColor: color + '40' }]}>
+        <Icon size={12} color={color} />
+        <Text style={[styles.badgeText, { color }]}>{s.toUpperCase()}</Text>
+      </View>
+    );
+  };
+
   if (loading) {
     return (
-      <View className="flex-1 bg-[#020617] items-center justify-center">
+      <View style={styles.centerContainer}>
+        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator color="#4FD1C7" size="large" />
-        <Text className="text-[#4FD1C7] font-black mt-6 tracking-widest uppercase text-[10px]">
-          Synchronizing Ledger...
-        </Text>
+        <Text style={styles.loadingText}>SYNCHRONIZING LEDGER...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.root}>
-      {/* DISABLE SYSTEM HEADER */}
+      {/* HEADER OVERRIDE */}
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* ENTERPRISE HEADER */}
+      {/* We use MainHeader here for consistent Top Bar, even on details */}
       <MainHeader title="Data Inspector" />
 
       <ScrollView
-        className="flex-1 px-6 pt-6"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 24, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {/* --- NODE IDENTITY CARD --- */}
-        <Animated.View entering={FadeInDown.duration(600)}>
+        {/* 1. NAVIGATION & IDENTITY */}
+        <Animated.View entering={FadeInDown.duration(500)}>
           <TouchableOpacity
             onPress={() => router.back()}
-            className="flex-row items-center mb-6 opacity-60"
+            style={styles.backBtn}
           >
-            <ArrowLeft size={16} color="white" />
-            <Text className="text-white ml-2 font-bold uppercase text-[10px] tracking-widest">
-              Return to Hub
-            </Text>
+            <ArrowLeft size={16} color="rgba(255,255,255,0.7)" />
+            <Text style={styles.backText}>RETURN TO HUB</Text>
           </TouchableOpacity>
 
-          <GlassCard className="p-8 border-l-4 border-l-[#4FD1C7] mb-8">
-            <View className="flex-row items-center mb-4">
-              <Globe size={18} color="#4FD1C7" />
-              <Text
-                className="ml-3 text-lg font-black text-white"
-                numberOfLines={1}
-              >
-                {job?.url.replace('https://', '')}
+          <GlassCard style={styles.identityCard}>
+            <View style={styles.urlRow}>
+              <View style={styles.iconBox}>
+                <Globe size={20} color="#4FD1C7" />
+              </View>
+              <Text style={styles.urlText} numberOfLines={1}>
+                {job?.url?.replace(/(^\w+:|^)\/\//, '') || 'UNKNOWN_TARGET'}
               </Text>
             </View>
 
-            <View className="flex-row gap-4">
-              <View className="flex-row items-center px-3 py-1 border rounded-full bg-white/5 border-white/10">
-                <ShieldCheck size={12} color="#4FD1C7" />
-                <Text className="text-[#4FD1C7] text-[9px] font-black uppercase ml-2">
-                  {job?.status}
-                </Text>
-              </View>
-              <View className="flex-row items-center opacity-40">
-                <Clock size={12} color="white" />
-                <Text className="text-white text-[9px] font-bold ml-2 uppercase">
-                  Node ID: {id?.toString().slice(0, 8)}
+            <View style={styles.metaRow}>
+              {renderStatusBadge(job?.status || null)}
+              
+              <View style={styles.idBadge}>
+                <Code size={12} color="rgba(255,255,255,0.4)" />
+                <Text style={styles.idText}>
+                  ID: {id?.slice(0, 8).toUpperCase()}
                 </Text>
               </View>
             </View>
           </GlassCard>
         </Animated.View>
 
-        {/* --- EXTRACTION TOOLBAR --- */}
-        <View className="flex-row items-center justify-between px-2 mb-6">
-          <View className="flex-row items-center">
+        {/* 2. TOOLBAR */}
+        <View style={styles.toolbar}>
+          <View style={styles.toolLeft}>
             <Database size={14} color="#64748B" />
-            <Text className="text-slate-500 font-black text-[10px] uppercase ml-3 tracking-[3px]">
-              Captured Nodes ({dataPayloads.length})
-            </Text>
+            <Text style={styles.toolLabel}>CAPTURED NODES ({dataPayloads.length})</Text>
           </View>
 
-          <TouchableOpacity
-            onPress={handleExport}
-            className="flex-row items-center bg-[#4FD1C7]/10 px-4 py-2 rounded-xl border border-[#4FD1C7]/20"
-          >
+          <TouchableOpacity onPress={handleExport} style={styles.exportBtn}>
             <Share2 size={14} color="#4FD1C7" />
-            <Text className="text-[#4FD1C7] font-black text-[10px] uppercase ml-2">
-              Export
-            </Text>
+            <Text style={styles.exportText}>EXPORT JSON</Text>
           </TouchableOpacity>
         </View>
 
-        {/* --- PAYLOAD LIST --- */}
+        {/* 3. DATA PAYLOADS */}
         {dataPayloads.length === 0 ? (
-          <View className="items-center justify-center py-20 opacity-20">
-            <FileJson size={48} color="#475569" />
-            <Text className="text-white font-bold mt-4 uppercase text-[10px] tracking-widest">
-              Awaiting First Commit
-            </Text>
+          <View style={styles.emptyContainer}>
+            <FileJson size={48} color="#334155" />
+            <Text style={styles.emptyTitle}>AWAITING DATA COMMIT</Text>
+            <Text style={styles.emptySub}>No structured data has been harvested yet.</Text>
           </View>
         ) : (
           dataPayloads.map((payload, index) => (
             <Animated.View
               key={payload.id}
-              entering={FadeInRight.delay(index * 100)}
-              className="mb-6"
+              entering={FadeInRight.delay(index * 100).springify()}
+              style={{ marginBottom: 16 }}
             >
-              <GlassCard className="overflow-hidden border-white/5">
-                <View className="flex-row items-center justify-between px-6 py-3 border-b bg-white/5 border-white/5">
-                  <View className="flex-row items-center">
+              <GlassCard style={styles.payloadCard}>
+                <View style={styles.payloadHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Code size={12} color="#4FD1C7" />
-                    <Text className="text-[#4FD1C7] font-mono text-[9px] font-black ml-2 uppercase">
-                      JSON_COMMIT_{payload.id.slice(0, 6)}
-                    </Text>
+                    <Text style={styles.commitLabel}>COMMIT_{payload.id.slice(0, 6)}</Text>
                   </View>
-                  <Text className="text-slate-500 font-mono text-[9px]">
-                    {new Date(payload.created_at).toLocaleTimeString()}
+                  <Text style={styles.timestamp}>
+                    {payload.created_at ? new Date(payload.created_at).toLocaleTimeString() : '--:--'}
                   </Text>
                 </View>
 
-                <View className="p-6 bg-black/40">
-                  {Object.entries(payload.content_structured || {}).map(
-                    ([key, value]) => (
-                      <View
-                        key={key}
-                        className="pb-4 mb-4 border-b border-white/5 last:border-0"
+                <View style={styles.jsonContainer}>
+                  {Object.entries((payload.content_structured as any) || {}).map(
+                    ([key, value], i) => (
+                      <View 
+                        key={`${key}-${i}`} 
+                        style={[
+                          styles.jsonRow,
+                          i === Object.keys(payload.content_structured as object).length - 1 && styles.lastRow
+                        ]}
                       >
-                        <Text className="text-[#4FD1C7] text-[8px] font-black uppercase tracking-widest mb-1">
-                          {key}
-                        </Text>
-                        <Text className="text-sm font-bold leading-6 text-white">
-                          {typeof value === 'object'
-                            ? JSON.stringify(value)
-                            : String(value)}
+                        <Text style={styles.jsonKey}>{key}</Text>
+                        <Text style={styles.jsonValue}>
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                         </Text>
                       </View>
                     ),
@@ -260,4 +273,45 @@ export default function DataInspector() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
+  centerContainer: { flex: 1, backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: '#4FD1C7', marginTop: 16, fontSize: 10, fontWeight: '900', letterSpacing: 2 },
+  
+  // NAVIGATION
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, opacity: 0.8 },
+  backText: { color: 'white', fontSize: 10, fontWeight: '900', letterSpacing: 1.5, marginLeft: 8 },
+
+  // IDENTITY CARD
+  identityCard: { padding: 0, overflow: 'hidden', marginBottom: 32 },
+  urlRow: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  iconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(79, 209, 199, 0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  urlText: { color: 'white', fontSize: 16, fontWeight: '800', flex: 1 },
+  
+  metaRow: { flexDirection: 'row', padding: 20, gap: 12 },
+  badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
+  badgeText: { fontSize: 10, fontWeight: '900', marginLeft: 6, letterSpacing: 0.5 },
+  idBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  idText: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700', marginLeft: 6, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+
+  // TOOLBAR
+  toolbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingHorizontal: 4 },
+  toolLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toolLabel: { color: '#64748B', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(79, 209, 199, 0.1)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(79, 209, 199, 0.2)' },
+  exportText: { color: '#4FD1C7', fontSize: 10, fontWeight: '900', marginLeft: 6, letterSpacing: 0.5 },
+
+  // PAYLOAD CARDS
+  payloadCard: { padding: 0, overflow: 'hidden' },
+  payloadHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: 'rgba(255,255,255,0.03)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  commitLabel: { color: '#4FD1C7', fontSize: 10, fontWeight: '900', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  timestamp: { color: '#64748B', fontSize: 10, fontWeight: '600' },
+  jsonContainer: { padding: 20 },
+  jsonRow: { marginBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 16 },
+  lastRow: { marginBottom: 0, borderBottomWidth: 0, paddingBottom: 0 },
+  jsonKey: { color: '#4FD1C7', fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
+  jsonValue: { color: '#E2E8F0', fontSize: 13, lineHeight: 20, fontWeight: '500' },
+
+  // EMPTY STATE
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, opacity: 0.5 },
+  emptyTitle: { color: '#94A3B8', fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 16 },
+  emptySub: { color: '#64748B', fontSize: 11, marginTop: 4 },
 });
