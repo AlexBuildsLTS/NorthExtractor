@@ -11,6 +11,9 @@
     }
   },
   "imports": {
+    "std/": "https://deno.land/std@0.200.0/",
+    "supabase": "jsr:@supabase/supabase-js@^2.43.5",
+    "google-ai": "npm:@google/generative-ai@^0.24.1",
     "https://deno.land/std/": "https://deno.land/std@0.200.0/",
     "@supabase/supabase-js": "jsr:@supabase/supabase-js@^2.43.5",
     "@google/generative-ai": "npm:@google/generative-ai@^0.24.1",

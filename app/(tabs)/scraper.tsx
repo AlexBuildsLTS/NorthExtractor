@@ -1,12 +1,10 @@
 /**
  * ============================================================================
- * 🛰️ NORTH INTELLIGENCE OS: SCRAPER TERMINAL (REAL-TIME WIRING)
+ * 🛰️ NORTH INTELLIGENCE OS: SCRAPER TERMINAL (BENTO EDITION)
  * ============================================================================
  * PATH: app/(tabs)/scraper.tsx
- * FEATURES:
- * - Direct Node Ignition: Triggers the Supabase Edge 'scrape-engine'.
- * - Live Harvest Feed: Subscribes to the 'harvested_data' ledger.
- * - Industrial UI: Staggered spring animations for cluster nodes.
+ * STATUS: PRODUCTION READY
+ * VISUALS: Matches Index.tsx (Glows, Gradients, Spring Physics)
  * ============================================================================
  */
 
@@ -19,9 +17,19 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  StatusBar,
+  Platform,
 } from 'react-native';
+import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  Layout,
+} from 'react-native-reanimated';
 import {
   Zap,
   Globe,
@@ -29,16 +37,150 @@ import {
   Terminal,
   CheckCircle2,
   Play,
+  Cpu,
+  Server,
+  Code,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
 import { Tables } from '@/supabase/database.types';
 
 type Scraper = Tables<'scrapers'>;
 
+// ----------------------------------------------------------------------------
+// 🧩 BENTO CARD COMPONENT (Shared Architecture)
+// ----------------------------------------------------------------------------
+const ScraperCard = ({
+  item,
+  index,
+  onRun,
+  isRunning,
+}: {
+  item: Scraper;
+  index: number;
+  onRun: () => void;
+  isRunning: boolean;
+}) => {
+  const scale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glowOpacity.value }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.98);
+    glowOpacity.value = withTiming(0.6);
+    if (Platform.OS !== 'web')
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1);
+    glowOpacity.value = withTiming(0);
+  };
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 100).springify()}
+      layout={Layout.springify()}
+      style={styles.cardWrapper}
+    >
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={() => {}} // Card press logic if needed
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.cardInner}
+      >
+        {/* Glow */}
+        <Animated.View style={[styles.glow, glowStyle]} />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.03)', 'transparent'] as const}
+          style={styles.glassShine}
+        />
+
+        {/* Header */}
+        <View style={styles.cardHeader}>
+          <View style={styles.headerLeft}>
+            <View style={styles.iconBox}>
+              <Globe size={18} color="#4FD1C7" />
+            </View>
+            <View>
+              <Text style={styles.nodeName}>{item.name}</Text>
+              <Text style={styles.nodeUrl} numberOfLines={1}>
+                {item.target_url}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.statusBadge,
+              item.status === 'active'
+                ? styles.activeBadge
+                : styles.inactiveBadge,
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                item.status === 'active'
+                  ? styles.activeDot
+                  : styles.inactiveDot,
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                item.status === 'active'
+                  ? styles.activeText
+                  : styles.inactiveText,
+              ]}
+            >
+              {item.status?.toUpperCase()}
+            </Text>
+          </View>
+        </View>
+
+        {/* Schema Preview */}
+        <View style={styles.schemaBox}>
+          <Code size={12} color="#64748B" />
+          <Text style={styles.schemaText} numberOfLines={1}>
+            SCHEMA:{' '}
+            {Object.keys(item.extraction_schema as object)
+              .join(', ')
+              .toUpperCase()}
+          </Text>
+        </View>
+
+        {/* Action Bar */}
+        <TouchableOpacity
+          onPress={onRun}
+          disabled={isRunning}
+          style={[styles.actionBtn, isRunning && styles.disabledBtn]}
+        >
+          {isRunning ? (
+            <ActivityIndicator color="#020617" size="small" />
+          ) : (
+            <>
+              <Zap size={14} color="#020617" fill="#020617" />
+              <Text style={styles.actionBtnText}>IGNITE NODE</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+// ----------------------------------------------------------------------------
+// 🚀 SCRAPER TERMINAL SCREEN
+// ----------------------------------------------------------------------------
 export default function ScraperTerminal() {
   const { user } = useAuth();
   const [scrapers, setScrapers] = useState<Scraper[]>([]);
@@ -78,23 +220,47 @@ export default function ScraperTerminal() {
 
   const runExtraction = async (scraper: Scraper) => {
     setIgnitingId(scraper.id);
-    try {
-      // WIRING: Direct call to your Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('scrape-engine', {
-        body: {
-          scraper_id: scraper.id,
-          url: scraper.target_url,
-          schema: scraper.extraction_schema,
-        },
-      });
+    if (Platform.OS !== 'web')
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
-      if (error) throw error;
-      Alert.alert(
-        'Extraction Initialized',
-        `Node ${scraper.name} has begun harvesting data.`,
+    try {
+      // 1. Create Job Entry First
+      const { data: job, error: jobError } = await supabase
+        .from('scraping_jobs')
+        .insert({
+          url: scraper.target_url,
+          status: 'pending',
+          target_schema: scraper.extraction_schema,
+          user_id: user?.id!,
+        })
+        .select()
+        .single();
+
+      if (jobError) throw jobError;
+
+      // 2. Trigger Edge Function
+      const { error: fnError } = await supabase.functions.invoke(
+        'scrape-engine',
+        {
+          body: {
+            job_id: job.id,
+            scraper_id: scraper.id,
+            url: scraper.target_url,
+            target_schema: scraper.extraction_schema,
+            operator_id: user?.id,
+          },
+        },
       );
+
+      if (fnError) throw fnError;
+
+      Alert.alert('Ignition Successful', `Node ${scraper.name} is harvesting.`);
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert('Ignition Failure', e.message);
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIgnitingId(null);
     }
@@ -102,58 +268,64 @@ export default function ScraperTerminal() {
 
   return (
     <View style={styles.root}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" />
       <LinearGradient
-        colors={['#020617', '#0A101F']}
+        colors={['#020617', '#0A101F', '#020617']}
         style={StyleSheet.absoluteFill}
       />
-      <MainHeader title="DIRECT SCRAPER" />
+
+      <MainHeader title="Command Deck" />
+
+      {/* Ambient Glow */}
+      <View style={styles.ambience} pointerEvents="none">
+        <LinearGradient
+          colors={['#06b6d4', 'transparent'] as const}
+          style={{ flex: 1 }}
+        />
+      </View>
 
       <ScrollView contentContainerStyle={styles.scrollArea}>
-        <Animated.View entering={FadeInUp} style={styles.header}>
-          <Text style={styles.sysTag}>CLUSTER_HUD_ACTIVE</Text>
-          <Text style={styles.title}>Deployment Nodes</Text>
+        {/* Header Stats */}
+        <Animated.View entering={FadeInDown.delay(50)} style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Server size={20} color="#4FD1C7" />
+            <Text style={styles.statLabel}>NODES AVAILABLE</Text>
+            <Text style={styles.statValue}>{scrapers.length}</Text>
+          </View>
+          <View
+            style={[
+              styles.statBox,
+              {
+                borderColor: '#A855F7',
+                backgroundColor: 'rgba(168, 85, 247, 0.05)',
+              },
+            ]}
+          >
+            <Cpu size={20} color="#A855F7" />
+            <Text style={[styles.statLabel, { color: '#A855F7' }]}>
+              AI ENGINE
+            </Text>
+            <Text style={styles.statValue}>ONLINE</Text>
+          </View>
         </Animated.View>
 
         {loading ? (
           <ActivityIndicator color="#4FD1C7" style={{ marginTop: 100 }} />
+        ) : scrapers.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Terminal size={48} color="#334155" />
+            <Text style={styles.emptyText}>NO NODES PROVISIONED</Text>
+          </View>
         ) : (
           scrapers.map((item, idx) => (
-            <Animated.View
+            <ScraperCard
               key={item.id}
-              entering={FadeInUp.delay(idx * 100)}
-              layout={Layout.springify()}
-            >
-              <GlassCard intensity={40} style={styles.nodeCard}>
-                <View style={styles.nodeCore}>
-                  <View style={styles.iconBox}>
-                    <Globe size={22} color="#4FD1C7" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.nodeName}>{item.name}</Text>
-                    <Text style={styles.nodeUrl} numberOfLines={1}>
-                      {item.target_url}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.divider} />
-
-                <TouchableOpacity
-                  onPress={() => runExtraction(item)}
-                  disabled={ignitingId === item.id}
-                  style={styles.igniteBtn}
-                >
-                  {ignitingId === item.id ? (
-                    <ActivityIndicator size="small" color="#020617" />
-                  ) : (
-                    <>
-                      <Zap size={16} color="#020617" fill="#020617" />
-                      <Text style={styles.igniteText}>RUN EXTRACTION</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </GlassCard>
-            </Animated.View>
+              item={item}
+              index={idx}
+              onRun={() => runExtraction(item)}
+              isRunning={ignitingId === item.id}
+            />
           ))
         )}
       </ScrollView>
@@ -163,51 +335,145 @@ export default function ScraperTerminal() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { padding: 32, paddingBottom: 100 },
-  header: { marginBottom: 40 },
-  sysTag: {
+  ambience: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 400,
+    opacity: 0.15,
+  },
+  scrollArea: { padding: 24, paddingBottom: 120 },
+
+  // STATS
+  statsRow: { flexDirection: 'row', gap: 16, marginBottom: 32 },
+  statBox: {
+    flex: 1,
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#4FD1C7',
+    backgroundColor: 'rgba(79, 209, 199, 0.05)',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statLabel: {
     color: '#4FD1C7',
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 4,
+    letterSpacing: 1,
   },
-  title: { color: 'white', fontSize: 40, fontWeight: '900', marginTop: 12 },
-  nodeCard: {
-    padding: 32,
-    borderRadius: 48,
-    marginBottom: 24,
+  statValue: { color: 'white', fontSize: 24, fontWeight: '800' },
+
+  // BENTO CARD
+  cardWrapper: { marginBottom: 20 },
+  cardInner: {
+    padding: 24,
+    borderRadius: 32,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    overflow: 'hidden',
   },
-  nodeCore: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#06b6d4',
+    opacity: 0,
+    zIndex: -1,
+  },
+  glassShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 80 },
+
+  // CARD CONTENT
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  headerLeft: { flexDirection: 'row', gap: 16, flex: 1 },
   iconBox: {
-    width: 54,
-    height: 54,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: 'rgba(79, 209, 199, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(79, 209, 199, 0.2)',
   },
-  nodeName: { color: 'white', fontSize: 20, fontWeight: '800' },
-  nodeUrl: { color: '#475569', fontSize: 14, marginTop: 4 },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    marginVertical: 24,
+  nodeName: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  igniteBtn: {
-    height: 64,
-    backgroundColor: '#4FD1C7',
-    borderRadius: 24,
+  nodeUrl: { color: '#64748B', fontSize: 12, marginTop: 4, maxWidth: 180 },
+
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  activeBadge: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+  inactiveBadge: { backgroundColor: 'rgba(255, 255, 255, 0.05)' },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  activeDot: { backgroundColor: '#10B981' },
+  inactiveDot: { backgroundColor: '#64748B' },
+  statusText: { fontSize: 10, fontWeight: '900' },
+  activeText: { color: '#10B981' },
+  inactiveText: { color: '#64748B' },
+
+  schemaBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  schemaText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    flex: 1,
+  },
+
+  actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 10,
+    backgroundColor: '#4FD1C7',
+    paddingVertical: 16,
+    borderRadius: 16,
+    shadowColor: '#4FD1C7',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
-  igniteText: {
+  disabledBtn: { opacity: 0.5 },
+  actionBtnText: {
     color: '#020617',
     fontWeight: '900',
-    fontSize: 15,
+    fontSize: 13,
     letterSpacing: 1,
+  },
+
+  emptyState: { alignItems: 'center', marginTop: 80, opacity: 0.5 },
+  emptyText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 16,
+    letterSpacing: 2,
   },
 });

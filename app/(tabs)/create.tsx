@@ -1,13 +1,11 @@
 /**
  * ============================================================================
- * 🌐 NORTH INTELLIGENCE OS: CLOUD CRAWLER ARCHITECT V100.0
+ * 💠 NORTH INTELLIGENCE OS: NODE ARCHITECT (BENTO EDITION)
  * ============================================================================
  * PATH: app/(tabs)/create.tsx
- * PURPOSE: Provision and deploy autonomous extraction nodes.
- * STANDARDS:
- * - High-Fidelity UI: Glassmorphism inputs with Reanimated 4 transitions.
- * - Deep Ledger Integration: Direct commit to public.scrapers table.
- * - Type-Safe: Integrated with Database['public']['Tables']['scrapers'].
+ * STATUS: PRODUCTION READY
+ * DESIGN: 1:1 Match with Index (Bento Grid / Deep Glass / Neon)
+ * LOGIC: Syncs with public.scrapers & public.scraping_jobs
  * ============================================================================
  */
 
@@ -22,83 +20,191 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Switch,
+  StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  SlideInRight,
+  Layout,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   Globe,
-  Terminal,
   Zap,
   Plus,
-  Database,
+  Trash2,
   Cpu,
   ArrowRight,
+  Sparkles,
+  Layers,
+  Database as DbIcon,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 // INTERNAL INFRASTRUCTURE
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
-import { SchemaBuilder } from '@/components/scraper/SchemaBuilder';
 import { TablesInsert } from '@/supabase/database.types';
 
-export default function CloudCrawlerArchitect() {
+// --- TYPES ---
+interface SchemaField {
+  id: string;
+  key: string;
+  description: string;
+}
+
+// ----------------------------------------------------------------------------
+// 🧩 SHARED COMPONENT: BENTO FORM CARD (Matches Index.tsx)
+// ----------------------------------------------------------------------------
+interface BentoCardProps {
+  children: React.ReactNode;
+  index?: number;
+  glowColor?: string;
+  title?: string;
+  icon?: any;
+}
+
+const BentoCard = ({
+  children,
+  index = 0,
+  glowColor = '#06b6d4',
+  title,
+  icon: Icon,
+}: BentoCardProps) => {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 100).springify()}
+      style={styles.bentoContainer}
+    >
+      {/* Background Glow */}
+      <View style={[styles.glow, { backgroundColor: glowColor }]} />
+
+      {/* Glass Gradient */}
+      <LinearGradient
+        colors={['rgba(255,255,255,0.03)', 'transparent'] as const}
+        style={styles.glassShine}
+      />
+
+      {/* Header */}
+      {title && (
+        <View style={styles.cardHeader}>
+          <View
+            style={[
+              styles.iconBox,
+              {
+                backgroundColor: `${glowColor}20`,
+                borderColor: `${glowColor}40`,
+              },
+            ]}
+          >
+            {Icon && <Icon size={16} color={glowColor} />}
+          </View>
+          <Text style={styles.cardTitle}>{title}</Text>
+        </View>
+      )}
+
+      {children}
+    </Animated.View>
+  );
+};
+
+// ----------------------------------------------------------------------------
+// 🚀 MAIN SCREEN
+// ----------------------------------------------------------------------------
+export default function CreateNodeScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1024;
 
-  // CORE STATE
+  // STATE
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
-  const [schema, setSchema] = useState<Record<string, string>>({});
+  const [runImmediately, setRunImmediately] = useState(true);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [fields, setFields] = useState<SchemaField[]>([
+    {
+      id: '1',
+      key: 'product_name',
+      description: 'The main title of the product',
+    },
+    { id: '2', key: 'price', description: 'Current price value' },
+  ]);
 
-  /**
-   * NODE DEPLOYMENT PROTOCOL
-   * Validates input and commits the new scraper node to the PostgreSQL ledger.
-   */
-  const handleDeployNode = async () => {
-    if (!name || !url) {
-      return Alert.alert(
-        'Handshake Refused',
-        'Please provide node designation and target URL.',
-      );
-    }
+  // ACTIONS
+  const handleAddField = () => {
+    setFields((p) => [
+      ...p,
+      { id: Date.now().toString(), key: '', description: '' },
+    ]);
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+  };
 
-    if (!url.startsWith('http')) {
-      return Alert.alert(
-        'Protocol Fault',
-        'HTTPS designation required for secure ignition.',
-      );
-    }
+  const handleRemoveField = (id: string) => {
+    setFields((p) => p.filter((f) => f.id !== id));
+    if (Platform.OS !== 'web')
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
-    if (!user) return Alert.alert('Security Fault', 'Operator unauthorized.');
+  const handleFieldChange = (
+    id: string,
+    prop: keyof SchemaField,
+    value: string,
+  ) => {
+    setFields((p) => p.map((f) => (f.id === id ? { ...f, [prop]: value } : f)));
+  };
+
+  const handleDeploy = async () => {
+    if (!name.trim() || !url.trim())
+      return Alert.alert('Missing Data', 'Designation and URL required.');
+    if (!url.startsWith('http'))
+      return Alert.alert('Protocol Error', 'HTTPS required.');
+    if (!user) return;
 
     setIsDeploying(true);
-
     try {
-      const payload: TablesInsert<'scrapers'> = {
+      // 1. Build Schema
+      const schemaJson: Record<string, string> = {};
+      fields.forEach((f) => {
+        if (f.key) schemaJson[f.key] = f.description;
+      });
+
+      // 2. Insert Scraper (Definition)
+      const { error: scraperError } = await supabase.from('scrapers').insert({
         name: name.trim(),
         target_url: url.trim(),
-        extraction_schema: schema,
+        extraction_schema: schemaJson,
         user_id: user.id,
         status: 'active',
         engine_type: 'gemini-1.5-pro',
-      };
+      });
 
-      const { error } = await supabase.from('scrapers').insert(payload);
+      if (scraperError) throw scraperError;
 
-      if (error) throw error;
+      // 3. (Optional) Run Job Immediately
+      if (runImmediately) {
+        await supabase.from('scraping_jobs').insert({
+          url: url.trim(),
+          status: 'pending',
+          target_schema: schemaJson,
+          user_id: user.id,
+        });
+      }
 
-      Alert.alert(
-        'Deployment Successful',
-        `Node ${name} is now synchronized with the grid.`,
-      );
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', 'Node initialized and active.');
       router.push('/(tabs)/');
     } catch (e: any) {
-      console.error('[TITAN-CRAWLER] Deployment Fault:', e.message);
-      Alert.alert('Deployment Failure', e.message);
+      Alert.alert('Deployment Failed', e.message);
     } finally {
       setIsDeploying(false);
     }
@@ -107,137 +213,317 @@ export default function CloudCrawlerArchitect() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient
-        colors={['#020617', '#0A101F', '#020617']}
-        style={StyleSheet.absoluteFill}
-      />
-      <MainHeader title="Cloud Crawler" />
+      <StatusBar barStyle="light-content" />
+      <MainHeader title="Architect" />
+
+      {/* BACKGROUND AMBIENCE (Same as Index) */}
+      <View style={styles.ambience} pointerEvents="none">
+        <LinearGradient
+          colors={['#4f46e5', 'transparent'] as const}
+          style={{ flex: 1 }}
+        />
+      </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* DESIGNATION DECK */}
-        <Animated.View
-          entering={FadeInDown.delay(100)}
-          layout={Layout.springify()}
+        {/* 1. IDENTITY CARD */}
+        <BentoCard
+          index={1}
+          title="TARGET PARAMETERS"
+          icon={Cpu}
+          glowColor="#06b6d4"
         >
-          <GlassCard style={styles.card}>
-            <View style={styles.labelRow}>
-              <Cpu size={16} color="#4FD1C7" />
-              <Text style={styles.labelText}>NODE DESIGNATION</Text>
-            </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>NODE DESIGNATION</Text>
             <TextInput
-              style={styles.textInput}
+              style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="e.g. TITAN-MARKET-ALPHA"
-              placeholderTextColor="#334155"
-              autoCapitalize="characters"
+              placeholder="e.g. MARKET-ALPHA-01"
+              placeholderTextColor="#475569"
             />
-
-            <View style={[styles.labelRow, { marginTop: 20 }]}>
-              <Globe size={16} color="#4FD1C7" />
-              <Text style={styles.labelText}>TARGET ENDPOINT</Text>
-            </View>
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>TARGET ENDPOINT</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.input, { color: '#60A5FA' }]}
               value={url}
               onChangeText={setUrl}
-              placeholder="https://target-node.ext"
-              placeholderTextColor="#334155"
+              placeholder="https://target.com/data"
+              placeholderTextColor="#475569"
               autoCapitalize="none"
-              keyboardType="url"
             />
-          </GlassCard>
-        </Animated.View>
+          </View>
+        </BentoCard>
 
-        {/* BLUEPRINT DECK */}
-        <Animated.View
-          entering={FadeInDown.delay(200)}
-          layout={Layout.springify()}
+        {/* 2. SCHEMA BUILDER */}
+        <BentoCard
+          index={2}
+          title="NEURAL SCHEMA"
+          icon={Sparkles}
+          glowColor="#a855f7"
         >
-          <GlassCard style={styles.card}>
-            <View style={styles.labelRow}>
-              <Database size={16} color="#A78BFA" />
-              <Text style={[styles.labelText, { color: '#A78BFA' }]}>
-                EXTRACTION BLUEPRINT
+          <Text style={styles.helper}>Define AI extraction points.</Text>
+
+          <View style={{ gap: 12 }}>
+            {fields.map((field, i) => (
+              <Animated.View
+                key={field.id}
+                entering={SlideInRight.delay(i * 50)}
+                layout={Layout.springify()}
+                style={styles.fieldRow}
+              >
+                <View style={{ flex: 1, gap: 8 }}>
+                  <TextInput
+                    style={styles.schemaInputKey}
+                    value={field.key}
+                    onChangeText={(v) => handleFieldChange(field.id, 'key', v)}
+                    placeholder="Key (e.g. price)"
+                    placeholderTextColor="#475569"
+                  />
+                  <TextInput
+                    style={styles.schemaInputDesc}
+                    value={field.description}
+                    onChangeText={(v) =>
+                      handleFieldChange(field.id, 'description', v)
+                    }
+                    placeholder="Context for AI..."
+                    placeholderTextColor="#475569"
+                  />
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleRemoveField(field.id)}
+                  style={styles.deleteBtn}
+                >
+                  <Trash2 size={18} color="#EF4444" />
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+
+          <TouchableOpacity onPress={handleAddField} style={styles.addBtn}>
+            <Plus size={16} color="#A855F7" />
+            <Text style={styles.addText}>ADD DATA POINT</Text>
+          </TouchableOpacity>
+        </BentoCard>
+
+        {/* 3. CONFIGURATION */}
+        <BentoCard
+          index={3}
+          title="DEPLOYMENT CONFIG"
+          icon={Zap}
+          glowColor="#F59E0B"
+        >
+          <View style={styles.switchRow}>
+            <View>
+              <Text style={styles.switchTitle}>IMMEDIATE IGNITION</Text>
+              <Text style={styles.switchSub}>
+                Dispatch crawler upon creation
               </Text>
             </View>
-            <SchemaBuilder onSchemaChange={setSchema} />
-          </GlassCard>
-        </Animated.View>
+            <Switch
+              value={runImmediately}
+              onValueChange={setRunImmediately}
+              trackColor={{ false: '#1e293b', true: 'rgba(245, 158, 11, 0.3)' }}
+              thumbColor={runImmediately ? '#F59E0B' : '#64748b'}
+            />
+          </View>
 
-        {/* DEPLOYMENT ACTION */}
-        <TouchableOpacity
-          onPress={handleDeployNode}
-          disabled={isDeploying}
-          style={[styles.deployBtn, isDeploying && { opacity: 0.5 }]}
-        >
-          {isDeploying ? (
-            <ActivityIndicator color="#020617" />
-          ) : (
-            <>
-              <Zap size={20} color="#020617" fill="#020617" />
-              <Text style={styles.deployText}>DEPLOY NODE</Text>
-              <ArrowRight size={20} color="#020617" />
-            </>
-          )}
-        </TouchableOpacity>
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            onPress={handleDeploy}
+            disabled={isDeploying}
+            style={[styles.deployBtn, isDeploying && { opacity: 0.5 }]}
+          >
+            {isDeploying ? (
+              <ActivityIndicator color="#020617" />
+            ) : (
+              <>
+                <Text style={styles.deployText}>INITIALIZE NODE</Text>
+                <ArrowRight size={20} color="#020617" />
+              </>
+            )}
+          </TouchableOpacity>
+        </BentoCard>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
+// ----------------------------------------------------------------------------
+// 🎨 STYLES (Strictly Matched to Index.tsx)
+// ----------------------------------------------------------------------------
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { padding: 24, paddingBottom: 120 },
-  card: {
-    padding: 24,
-    borderRadius: 32,
-    marginBottom: 24,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+  ambience: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 500,
+    opacity: 0.2,
   },
-  labelRow: {
+  scrollContent: { padding: 24, paddingBottom: 100 },
+
+  // BENTO CARD STYLES
+  bentoContainer: {
+    marginBottom: 24,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    overflow: 'hidden',
+    padding: 24,
+  },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    zIndex: -1, // Subtle static glow or animated if needed
+  },
+  glassShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
+    marginBottom: 20,
+    gap: 12,
   },
-  labelText: {
-    color: '#4FD1C7',
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  cardTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  // FORM ELEMENTS
+  inputGroup: { marginBottom: 16 },
+  label: {
+    color: '#64748B',
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
+    marginBottom: 8,
   },
-  textInput: {
+  input: {
     backgroundColor: '#020617',
-    padding: 20,
-    borderRadius: 16,
-    color: 'white',
-    fontSize: 15,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    padding: 16,
+    color: 'white',
+    fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  deployBtn: {
-    backgroundColor: '#4FD1C7',
-    height: 75,
-    borderRadius: 24,
+  helper: { color: '#94a3b8', fontSize: 12, marginBottom: 16 },
+
+  // SCHEMA BUILDER
+  fieldRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  schemaInputKey: {
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.2)',
+    borderRadius: 12,
+    padding: 12,
+    color: '#D8B4FE',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  schemaInputDesc: {
+    backgroundColor: 'rgba(2, 6, 23, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 12,
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  deleteBtn: {
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  addBtn: {
+    marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 15,
-    marginTop: 10,
-    shadowColor: '#4FD1C7',
+    gap: 8,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(168, 85, 247, 0.05)',
+  },
+  addText: {
+    color: '#D8B4FE',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+
+  // SWITCH & DEPLOY
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchTitle: {
+    color: '#F59E0B',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  switchSub: { color: '#64748b', fontSize: 11, marginTop: 2 },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginVertical: 20,
+  },
+
+  deployBtn: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 16,
+    paddingVertical: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    shadowColor: '#F59E0B',
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 8,
   },
   deployText: {
     color: '#020617',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
 });

@@ -1,15 +1,13 @@
 # NorthScrape: AI-Powered Intelligence Hub
 
-<div align="center">
-
-[![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-blue.svg)](https://expo.dev)
-[![Framework](https://img.shields.io/badge/Framework-React%20Native-61DAFB.svg)](https://reactnative.dev)
-[![Expo](https://img.shields.io/badge/Expo-SDK%2051-000020.svg)](https://expo.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org)
-[![Backend](https://img.shields.io/badge/Backend-Supabase-3ECF8E.svg)](https://supabase.com)
-[![AI](https://img.shields.io/badge/AI-Google%20Gemini-8E75FF.svg)](https://deepmind.google/technologies/gemini/)
-
-</div>
+<p align="center">
+  <a href="https://expo.dev"><img src="https://img.shields.io/badge/Platform-iOS%20%7C%20Android-blue.svg" alt="Platform"></a>
+  <a href="https://reactnative.dev"><img src="https://img.shields.io/badge/Framework-React%20Native-61DAFB.svg" alt="Framework"></a>
+  <a href="https://expo.dev"><img src="https://img.shields.io/badge/Expo-SDK%2051-000020.svg" alt="Expo"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6.svg" alt="TypeScript"></a>
+  <a href="https://supabase.com"><img src="https://img.shields.io/badge/Backend-Supabase-3ECF8E.svg" alt="Backend"></a>
+  <a href="https://deepmind.google/technologies/gemini/"><img src="https://img.shields.io/badge/AI-Google%20Gemini-8E75FF.svg" alt="AI"></a>
+</p>
 
 ## 🌟 The Future of Web Intelligence
 

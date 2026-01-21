@@ -1,0 +1,18 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "APEXSCRAPE",
+    "NorthScrape",
+    "glassmorphism",
+    "NativeWind",
+    "Reanimated",
+    "PostgREST"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    ".git/**",
+    "supabase/.gitignore",
+    "*.lock"
+  ]
+}
