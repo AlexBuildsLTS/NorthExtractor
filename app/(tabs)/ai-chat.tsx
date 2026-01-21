@@ -1,202 +1,416 @@
 /**
  * ============================================================================
- * 🧠 APEXSCRAPE: NEURAL SYNTHESIS CHAT (TITAN INTELLIGENCE) V100.1
+ * 🧠 APEXSCRAPE: NEURAL INTERFACE (TITAN-V60 UI)
  * ============================================================================
  * PATH: app/(tabs)/ai-chat.tsx
+ * DESIGN: Matches Index/Create (Deep Glass, Neon Accents, Spring Physics).
  * FEATURES:
- * - Contextual Memory: Pulls latest data nodes from 'extracted_data' ledger.
- * - Glassmorphism Messaging: Premium blurred message bubbles.
- * - Real-time AI Handshake: Direct integration with Google Gemini Edge Function.
- * - Improved: Better performance, error handling, and maintainability.
+ * - Real-time Edge Function Link ('neural-synthesis').
+ * - Layout Animations for fluid chat flow.
+ * - Haptic Feedback on interaction.
  * ============================================================================
  */
 
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  StatusBar,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import { Send, Cpu, Database, Sparkles, MessageSquare } from 'lucide-react-native';
+import Animated, {
+  FadeInUp,
+  Layout,
+  FadeInDown,
+} from 'react-native-reanimated';
+import {
+  Send,
+  Cpu,
+  User,
+  Sparkles,
+  AlertTriangle,
+  Terminal,
+} from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
-import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
 import { supabase } from '@/lib/supabase';
 
-// Constants for better maintainability
-const COLORS = {
-  primary: '#4FD1C7',
-  secondary: '#A78BFA',
-  background: '#020617',
-  text: '#E2E8F0',
-  textSecondary: '#475569',
-  bubbleUser: 'rgba(167, 139, 250, 0.1)',
-  bubbleAssistant: 'rgba(15, 23, 42, 0.6)',
-};
-
+// --- TYPES ---
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  isError?: boolean;
 }
 
-interface NeuralSynthesisResponse {
-  response?: string;
-  error?: string;
-}
+// ----------------------------------------------------------------------------
+// 🧩 COMPONENT: NEURAL MESSAGE CARD
+// ----------------------------------------------------------------------------
+const MessageCard = ({ item, index }: { item: Message; index: number }) => {
+  const isUser = item.role === 'user';
+  const isSystem = item.role === 'system';
 
-// Separate component for individual messages to improve performance and readability
-const MessageBubble = memo(({ message }: { message: Message }) => (
-  <Animated.View entering={FadeInUp}>
-    <GlassCard style={[
-      styles.messageBubble,
-      message.role === 'user' ? styles.userBubble : styles.assistantBubble
-    ]}>
-      <View style={styles.bubbleHeader}>
-        {message.role === 'assistant' ? <Cpu size={12} color={COLORS.primary} /> : <MessageSquare size={12} color={COLORS.secondary} />}
-        <Text style={[styles.roleText, { color: message.role === 'assistant' ? COLORS.primary : COLORS.secondary }]}>
-          {message.role.toUpperCase()}
-        </Text>
-      </View>
-      <Text style={styles.messageContent}>{message.content}</Text>
-      <Text style={styles.timestamp}>{new Date(message.timestamp).toLocaleTimeString()}</Text>
-    </GlassCard>
-  </Animated.View>
-));
+  // Dynamic Styling based on Role
+  const alignSelf = isUser ? 'flex-end' : 'flex-start';
+  const glowColor = isUser ? '#A78BFA' : item.isError ? '#EF4444' : '#4FD1C7';
+  const bgColors = isUser
+    ? ['rgba(167, 139, 250, 0.1)', 'rgba(167, 139, 250, 0.05)']
+    : ['rgba(15, 23, 42, 0.8)', 'rgba(15, 23, 42, 0.6)'];
 
+  const borderColor = isUser
+    ? 'rgba(167, 139, 250, 0.2)'
+    : 'rgba(79, 209, 199, 0.1)';
+
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(50).springify()}
+      layout={Layout.springify()}
+      style={[styles.msgWrapper, { alignSelf }]}
+    >
+      <LinearGradient
+        colors={bgColors as any}
+        style={[styles.msgGradient, { borderColor }]}
+      >
+        {/* Header Metadata */}
+        <View style={styles.msgHeader}>
+          <View
+            style={[
+              styles.roleBadge,
+              { borderColor: glowColor, backgroundColor: `${glowColor}10` },
+            ]}
+          >
+            {isUser ? (
+              <User size={10} color={glowColor} />
+            ) : (
+              <Cpu size={10} color={glowColor} />
+            )}
+            <Text style={[styles.roleText, { color: glowColor }]}>
+              {isUser ? 'OPERATOR' : 'TITAN AI'}
+            </Text>
+          </View>
+          <Text style={styles.timestamp}>
+            {new Date(item.timestamp).toLocaleTimeString([], {
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        </View>
+
+        {/* Content */}
+        <Text style={styles.msgContent}>{item.content}</Text>
+      </LinearGradient>
+    </Animated.View>
+  );
+};
+
+// ----------------------------------------------------------------------------
+// 🚀 MAIN SCREEN
+// ----------------------------------------------------------------------------
 export default function AIChatScreen() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // Memoized send message handler for performance
+  // Auto-scroll on new messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        200,
+      );
+    }
+  }, [messages, isTyping]);
+
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isTyping) return;
 
-    const userMessage: Message = {
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+
+    const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input.trim(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
 
     try {
-      // Invoke Neural Synthesis Edge Function with timeout
-      const { data, error }: { data: NeuralSynthesisResponse | null; error: any } = await supabase.functions.invoke('neural-synthesis', {
-        body: { query: userMessage.content }
-      });
+      const { data, error } = await supabase.functions.invoke(
+        'neural-synthesis',
+        {
+          body: { query: userMsg.content },
+        },
+      );
 
-      if (error) throw new Error(error.message || 'Edge function invocation failed');
+      if (error) throw new Error(error.message || 'Neural Link Failed');
 
-      const botMessage: Message = {
+      const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data?.response || data?.error || "Synthesis failed. Check ledger health.",
-        timestamp: new Date().toISOString()
+        content: data?.response || 'Analysis complete. No data returned.',
+        timestamp: new Date().toISOString(),
       };
 
-      setMessages(prev => [...prev, botMessage]);
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setMessages((prev) => [...prev, aiMsg]);
     } catch (err: any) {
-      const errorMessage = err.message || 'An unknown error occurred';
-      console.error('AI Chat Error:', errorMessage); // Added logging for debugging
-      setMessages(prev => [...prev, {
-        id: `err-${Date.now()}`,
+      const errorMsg: Message = {
+        id: (Date.now() + 2).toString(),
         role: 'assistant',
-        content: `[TITAN-CORE] Fault: ${errorMessage}. Please try again.`,
-        timestamp: new Date().toISOString()
-      }]);
+        content: `SYSTEM FAULT: ${err.message}`,
+        timestamp: new Date().toISOString(),
+        isError: true,
+      };
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsTyping(false);
     }
   }, [input, isTyping]);
 
-  useEffect(() => {
-    if (flatListRef.current && (messages.length > 0 || isTyping)) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100); // Delayed scroll for better UX
-    }
-  }, [messages, isTyping]);
-
-  const renderMessage = ({ item }: { item: Message }) => <MessageBubble message={item} />;
-  const keyExtractor = (item: Message) => item.id;
-
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient colors={[COLORS.background, '#0A101F', COLORS.background]} style={StyleSheet.absoluteFill} />
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={['#020617', '#0A101F', '#020617']}
+        style={StyleSheet.absoluteFill}
+      />
+
       <MainHeader title="Neural Synthesis" />
+
+      {/* Ambient Background */}
+      <View style={styles.ambience} pointerEvents="none">
+        <LinearGradient
+          colors={['#a855f7', 'transparent'] as const}
+          style={{ flex: 1 }}
+        />
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={100}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <FlatList
           ref={flatListRef}
           data={messages}
-          renderItem={renderMessage}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.chatArea}
+          renderItem={({ item, index }) => (
+            <MessageCard item={item} index={index} />
+          )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.welcomeBox}>
-              <Sparkles size={48} color={COLORS.primary} />
-              <Text style={styles.welcomeTitle}>CORE INTELLIGENCE ACTIVE</Text>
-              <Text style={styles.welcomeSub}>Query the data ledger for synthesized insights.</Text>
-            </View>
+            <Animated.View
+              entering={FadeInDown.delay(200)}
+              style={styles.emptyState}
+            >
+              <View style={styles.emptyIconBox}>
+                <Sparkles size={32} color="#A78BFA" />
+              </View>
+              <Text style={styles.emptyTitle}>TITAN NEURAL LINK</Text>
+              <Text style={styles.emptySub}>
+                Connected to Gemini 1.5 Pro. Ready to analyze extraction
+                ledgers.
+              </Text>
+            </Animated.View>
           }
           ListFooterComponent={
             isTyping ? (
-              <View style={styles.typingIndicator}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.typingText}>SYNTHESIZING LEDGER...</Text>
-              </View>
-            ) : null
+              <Animated.View entering={FadeInUp} style={styles.typingBox}>
+                <ActivityIndicator color="#4FD1C7" size="small" />
+                <Text style={styles.typingText}>PROCESSING LEDGER...</Text>
+              </Animated.View>
+            ) : (
+              <View style={{ height: 20 }} />
+            )
           }
         />
 
-        <GlassCard style={styles.inputDock}>
-          <TextInput
-            style={styles.chatInput}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Search extraction ledger..."
-            placeholderTextColor={COLORS.textSecondary}
-            multiline
-            maxLength={500} // Added character limit for edge case
-          />
-          <TouchableOpacity onPress={handleSendMessage} style={[styles.sendBtn, { opacity: input.trim() ? 1 : 0.5 }]} disabled={!input.trim()}>
-            <Send size={20} color={COLORS.background} />
-          </TouchableOpacity>
-        </GlassCard>
+        {/* INPUT DOCK */}
+        <View style={styles.inputContainer}>
+          <View style={styles.glassInput}>
+            <TextInput
+              style={styles.textInput}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Query extracted data..."
+              placeholderTextColor="#64748B"
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              onPress={handleSendMessage}
+              disabled={!input.trim() || isTyping}
+              style={[styles.sendBtn, !input.trim() && { opacity: 0.3 }]}
+            >
+              <Send size={18} color="#020617" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
+// ----------------------------------------------------------------------------
+// 🎨 STYLES (MATCHING INDEX/CREATE)
+// ----------------------------------------------------------------------------
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
-  chatArea: { padding: 20, paddingBottom: 40 },
-  welcomeBox: { alignItems: 'center', marginTop: 100, gap: 15 },
-  welcomeTitle: { color: COLORS.primary, fontSize: 10, fontWeight: '900', letterSpacing: 4 },
-  welcomeSub: { color: COLORS.textSecondary, fontSize: 12, textAlign: 'center', paddingHorizontal: 40 },
-  messageBubble: { padding: 16, borderRadius: 20, marginBottom: 15, maxWidth: '90%' },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: COLORS.bubbleUser },
-  assistantBubble: { alignSelf: 'flex-start', backgroundColor: COLORS.bubbleAssistant },
-  bubbleHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  roleText: { fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  messageContent: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
-  timestamp: { color: COLORS.textSecondary, fontSize: 10, marginTop: 5, textAlign: 'right' },
-  typingIndicator: { flexDirection: 'row', alignItems: 'center', gap: 10, marginLeft: 20, marginBottom: 20 },
-  typingText: { color: COLORS.primary, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  inputDock: { margin: 16, padding: 10, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  chatInput: { flex: 1, color: COLORS.text, fontSize: 14, paddingHorizontal: 12, maxHeight: 100 },
-  sendBtn: { width: 44, height: 44, backgroundColor: COLORS.primary, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }
+  root: { flex: 1, backgroundColor: '#020617' },
+  ambience: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 400,
+    opacity: 0.1,
+  },
+
+  listContent: { padding: 24, paddingBottom: 20 },
+
+  // MESSAGES
+  msgWrapper: {
+    maxWidth: '85%',
+    marginBottom: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  msgGradient: {
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  msgHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  roleText: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  timestamp: {
+    color: '#64748B',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  msgContent: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+
+  // EMPTY STATE
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 120,
+    opacity: 0.8,
+  },
+  emptyIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(167, 139, 250, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.2)',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 3,
+    marginBottom: 8,
+  },
+  emptySub: {
+    color: '#64748B',
+    fontSize: 12,
+    textAlign: 'center',
+    maxWidth: 260,
+    lineHeight: 18,
+  },
+
+  // TYPING
+  typingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginLeft: 24,
+    marginBottom: 24,
+  },
+  typingText: {
+    color: '#4FD1C7',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+
+  // INPUT DOCK
+  inputContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    paddingTop: 12,
+  },
+  glassInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 24,
+    padding: 6,
+    shadowColor: '#4FD1C7',
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+  },
+  textInput: {
+    flex: 1,
+    color: 'white',
+    fontSize: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxHeight: 100,
+  },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 18,
+    backgroundColor: '#4FD1C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

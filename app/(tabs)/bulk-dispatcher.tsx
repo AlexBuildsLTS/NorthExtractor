@@ -1,12 +1,11 @@
 /**
  * ============================================================================
- * 🛰️ NORTH INTELLIGENCE OS: BULK DISPATCHER HUD V120.0
+ * 🛰️ NORTH INTELLIGENCE OS: BULK DISPATCHER (BENTO EDITION)
  * ============================================================================
  * PATH: app/(tabs)/bulk-dispatcher.tsx
- * FEATURES:
- * - MASSIVE EXTRACTION: Provisions multiple data nodes in a single handshake.
- * - RPC INTEGRATION: Wires directly to public.dispatch_bulk_jobs.
- * - INDUSTRIAL UI: 48px radii and heavy-glass synthesis.
+ * STATUS: PRODUCTION READY
+ * VISUALS: Matches Index/Scraper (Bento Grid / Deep Glass / Neon)
+ * LOGIC: Syncs with public.dispatch_bulk_jobs RPC
  * ============================================================================
  */
 
@@ -21,10 +20,18 @@ import {
   Alert,
   StyleSheet,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  Layout,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   Layers,
   Zap,
@@ -32,151 +39,209 @@ import {
   Terminal,
   Globe,
   List,
+  CheckCircle2,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { MainHeader } from '@/components/ui/MainHeader';
+
+// ----------------------------------------------------------------------------
+// 🧩 BENTO CARD WRAPPER
+// ----------------------------------------------------------------------------
+const BentoWrapper = ({ children, index = 0, glowColor = '#06b6d4' }: any) => {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 100).springify()}
+      layout={Layout.springify()}
+      style={styles.bentoCard}
+    >
+      <View style={[styles.glow, { backgroundColor: glowColor }]} />
+      <LinearGradient
+        colors={['rgba(255,255,255,0.03)', 'transparent'] as const}
+        style={styles.glassShine}
+      />
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function BulkDispatcher() {
   const { user } = useAuth();
 
-  // HUD STATE
+  // STATE
   const [urlInput, setUrlInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   /**
    * CLUSTER IGNITION PROTOCOL
-   * Parses text input and triggers the bulk dispatch RPC.
    */
   const handleBulkIgnition = async () => {
     if (!user) return Alert.alert('Security Fault', 'Operator unauthorized.');
 
-    // 1. CLEANSE & VALIDATE NODES
+    // 1. PARSE & VALIDATE
     const urls = urlInput
       .split('\n')
       .map((u) => u.trim())
       .filter((u) => u.startsWith('http'));
 
     if (urls.length === 0) {
-      return Alert.alert(
-        'Protocol Fault',
-        'No valid target URLs detected in input buffer.',
-      );
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return Alert.alert('Protocol Fault', 'No valid HTTPS targets in buffer.');
     }
 
     setIsProcessing(true);
+    if (Platform.OS !== 'web')
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     try {
-      // 2. RPC HANDSHAKE: Call the bulk dispatch function in Supabase
+      // 2. RPC HANDSHAKE
       const { data, error } = await supabase.rpc('dispatch_bulk_jobs', {
-        p_schema: { type: 'auto_semantic' }, // Default extraction logic
+        p_schema: { type: 'auto_semantic' }, // Default schema strategy
         p_urls: urls,
         p_user_id: user.id,
       });
 
       if (error) throw error;
 
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Cluster Deployed',
-        `Successfully ignited ${data} nodes. Telemetry is now streaming to the Command Center.`,
+        `Successfully ignited ${data} nodes. Telemetry streaming to Command Center.`,
       );
       setUrlInput('');
     } catch (e: any) {
-      console.error('[TITAN-DISPATCH] Handshake Fault:', e.message);
+      console.error('[TITAN-DISPATCH] Fault:', e.message);
       Alert.alert('Deployment Failure', e.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const nodeCount = urlInput
+    .split('\n')
+    .filter((l) => l.trim().startsWith('http')).length;
+
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" />
       <LinearGradient
-        colors={['#020617', '#010015']}
+        colors={['#020617', '#0A101F', '#020617']}
         style={StyleSheet.absoluteFill}
       />
-      <MainHeader title="BULK DISPATCHER" />
+
+      <MainHeader title="Bulk Dispatcher" />
+
+      {/* Ambient Glow */}
+      <View style={styles.ambience} pointerEvents="none">
+        <LinearGradient
+          colors={['#a855f7', 'transparent'] as const}
+          style={{ flex: 1 }}
+        />
+      </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollArea}
         showsVerticalScrollIndicator={false}
       >
-        {/* OPERATOR HEADER */}
-        <Animated.View
-          entering={FadeInDown.duration(800)}
-          style={styles.header}
-        >
-          <Text style={styles.sysTag}>BATCH_IGNITION_ACTIVE</Text>
-          <Text style={styles.title}>Cluster Logic</Text>
-        </Animated.View>
-
-        {/* URL BUFFER INPUT */}
-        <Animated.View entering={FadeInUp.delay(200)}>
-          <GlassCard intensity={45} style={styles.inputCard}>
-            <View style={styles.labelRow}>
-              <List size={16} color="#4FD1C7" />
-              <Text style={styles.labelText}>
-                TARGET URL BUFFER (ONE PER LINE)
-              </Text>
-            </View>
-
-            <TextInput
-              style={styles.textArea}
-              placeholder={`https://endpoint-alpha.com\nhttps://endpoint-beta.com`}
-              placeholderTextColor="#334155"
-              multiline
-              value={urlInput}
-              onChangeText={setUrlInput}
-              autoCapitalize="none"
-              keyboardType="url"
-              spellCheck={false}
-            />
-
-            <View style={styles.statFooter}>
-              <Database size={12} color="#475569" />
-              <Text style={styles.statText}>
-                DETECTED_NODES:{' '}
+        {/* 1. INPUT BUFFER CARD */}
+        <BentoWrapper index={1} glowColor="#a855f7">
+          <View style={styles.cardHeader}>
+            <View
+              style={[
+                styles.iconBox,
                 {
-                  urlInput
-                    .split('\n')
-                    .filter((l) => l.trim().startsWith('http')).length
-                }
-              </Text>
-            </View>
-          </GlassCard>
-        </Animated.View>
-
-        {/* EXECUTION NODE */}
-        <TouchableOpacity
-          style={[styles.igniteBtn, isProcessing && { opacity: 0.5 }]}
-          onPress={handleBulkIgnition}
-          disabled={isProcessing}
-        >
-          {isProcessing ? (
-            <ActivityIndicator color="#020617" />
-          ) : (
-            <LinearGradient
-              colors={['#4FD1C7', '#38B2AC']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradientInner}
+                  backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                  borderColor: 'rgba(168, 85, 247, 0.2)',
+                },
+              ]}
             >
-              <Zap size={20} color="#020617" fill="#020617" />
-              <Text style={styles.igniteText}>IGNITE BATCH CLUSTER</Text>
-            </LinearGradient>
-          )}
-        </TouchableOpacity>
+              <List size={18} color="#A855F7" />
+            </View>
+            <Text style={styles.cardTitle}>TARGET BUFFER</Text>
+          </View>
 
-        <View style={styles.noticeBox}>
-          <Terminal size={14} color="#1E293B" />
-          <Text style={styles.noticeText}>
-            Batch ignition consumes high compute resources. Distributed proxies
-            will be rotated automatically.
+          <TextInput
+            style={styles.textArea}
+            placeholder={`https://endpoint-alpha.com\nhttps://endpoint-beta.com`}
+            placeholderTextColor="#475569"
+            multiline
+            value={urlInput}
+            onChangeText={setUrlInput}
+            autoCapitalize="none"
+            keyboardType="url"
+            spellCheck={false}
+          />
+
+          <View style={styles.statFooter}>
+            <View style={styles.statBadge}>
+              <Database size={12} color="#4FD1C7" />
+              <Text style={styles.statText}>NODES: {nodeCount}</Text>
+            </View>
+            {nodeCount > 0 && (
+              <View
+                style={[
+                  styles.statBadge,
+                  { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+                ]}
+              >
+                <CheckCircle2 size={12} color="#10B981" />
+                <Text style={[styles.statText, { color: '#10B981' }]}>
+                  VALID
+                </Text>
+              </View>
+            )}
+          </View>
+        </BentoWrapper>
+
+        {/* 2. EXECUTION CARD */}
+        <BentoWrapper index={2} glowColor="#0ea5e9">
+          <View style={styles.cardHeader}>
+            <View
+              style={[
+                styles.iconBox,
+                {
+                  backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                  borderColor: 'rgba(14, 165, 233, 0.2)',
+                },
+              ]}
+            >
+              <Layers size={18} color="#0EA5E9" />
+            </View>
+            <Text style={styles.cardTitle}>DEPLOYMENT PROTOCOL</Text>
+          </View>
+
+          <Text style={styles.helperText}>
+            Batch processing consumes high compute resources. Distributed
+            proxies will rotate automatically for each target.
           </Text>
-        </View>
+
+          <TouchableOpacity
+            style={[
+              styles.igniteBtn,
+              (isProcessing || nodeCount === 0) && styles.disabledBtn,
+            ]}
+            onPress={handleBulkIgnition}
+            disabled={isProcessing || nodeCount === 0}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#020617" />
+            ) : (
+              <>
+                <Zap size={18} color="#020617" fill="#020617" />
+                <Text style={styles.igniteText}>
+                  IGNITE {nodeCount > 0 ? nodeCount : 'BATCH'} CLUSTER
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </BentoWrapper>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -184,89 +249,118 @@ export default function BulkDispatcher() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#020617' },
-  scrollArea: { padding: 32, paddingBottom: 120 },
-  header: { marginBottom: 48 },
-  sysTag: {
-    color: '#4FD1C7',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 4,
+  ambience: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 500,
+    opacity: 0.15,
   },
-  title: { color: 'white', fontSize: 44, fontWeight: '900', marginTop: 12 },
+  scrollArea: { padding: 24, paddingBottom: 120 },
 
-  inputCard: {
-    padding: 40,
-    borderRadius: 48,
-    marginBottom: 32,
+  // BENTO STYLES
+  bentoCard: {
+    marginBottom: 24,
+    borderRadius: 32,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    padding: 24,
+    overflow: 'hidden',
   },
-  labelRow: {
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    zIndex: -1,
+  },
+  glassShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 80 },
+
+  // HEADER
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  labelText: {
-    color: '#4FD1C7',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 
+  // INPUT
   textArea: {
-    minHeight: 280,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 24,
-    padding: 24,
-    color: '#FFF',
-    fontSize: 15,
+    minHeight: 200,
+    backgroundColor: 'rgba(2, 6, 23, 0.5)',
+    borderRadius: 16,
+    padding: 20,
+    color: '#E2E8F0',
+    fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.05)',
+    lineHeight: 22,
   },
 
-  statFooter: {
+  // FOOTER STATS
+  statFooter: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 24,
-    opacity: 0.6,
+    backgroundColor: 'rgba(79, 209, 199, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   statText: {
-    color: '#475569',
+    color: '#4FD1C7',
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 1,
   },
 
-  igniteBtn: { height: 84, borderRadius: 42, overflow: 'hidden' },
-  gradientInner: {
-    flex: 1,
+  // HELPER TEXT
+  helperText: {
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+
+  // BUTTON
+  igniteBtn: {
+    backgroundColor: '#4FD1C7',
+    height: 64,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: 12,
+    shadowColor: '#4FD1C7',
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
   },
+  disabledBtn: { opacity: 0.5, backgroundColor: '#334155', shadowOpacity: 0 },
   igniteText: {
     color: '#020617',
     fontWeight: '900',
-    fontSize: 17,
+    fontSize: 14,
     letterSpacing: 1,
-  },
-
-  noticeBox: {
-    flexDirection: 'row',
-    marginTop: 40,
-    gap: 16,
-    paddingHorizontal: 20,
-  },
-  noticeText: {
-    color: '#1E293B',
-    fontSize: 11,
-    lineHeight: 18,
-    flex: 1,
-    fontWeight: '700',
   },
 });

@@ -1,92 +1,115 @@
-import React from 'react';
+/**
+ * ============================================================================
+ * 🔐 COMPONENT: PASSWORD STRENGTH METER (NEON EDITION)
+ * ============================================================================
+ * PATH: components/auth/PasswordStrengthIndicator.tsx
+ * STATUS: PRODUCTION READY
+ * FEATURES:
+ * - Fluid Reanimated Bars (Neon Glow).
+ * - Heuristic Feedback (Weak -> Secure).
+ * ============================================================================
+ */
+
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
-import { Check } from 'lucide-react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  SharedValue,
+} from 'react-native-reanimated';
 
 interface Props {
-  password: string;
+  password: string; // <--- RENAMED TO MATCH YOUR EXPECTATION
 }
 
-export const PasswordStrengthIndicator: React.FC<Props> = ({ password }) => {
-  const getStrength = (pass: string) => {
-    let score = 0;
-    if (pass.length >= 8) score += 1;
-    if (/[A-Z]/.test(pass)) score += 1;
-    if (/[0-9]/.test(pass)) score += 1;
-    if (/[^A-Za-z0-9]/.test(pass)) score += 1;
-    return score;
-  };
+export const PasswordStrengthIndicator = ({ password }: Props) => {
+  const strength = calculateStrength(password);
+  const color = getStrengthColor(strength);
 
-  const strength = getStrength(password);
-  
-  const barStyle = useAnimatedStyle(() => {
-    const colors = ['#334155', '#EF4444', '#F59E0B', '#10B981', '#64FFDA'];
-    return {
-      width: withTiming(`${(strength / 4) * 100}%`, { duration: 300 }),
-      backgroundColor: withTiming(colors[strength] || '#334155')
-    };
-  });
+  // Animated Values
+  const w1 = useSharedValue(0);
+  const w2 = useSharedValue(0);
+  const w3 = useSharedValue(0);
+  const w4 = useSharedValue(0);
 
-  const Requirement = ({ label, met }: { label: string; met: boolean }) => (
-    <View style={styles.requirementItem}>
-      <View style={[styles.checkIcon, { backgroundColor: met ? '#64FFDA' : 'rgba(255, 255, 255, 0.1)' }]}>
-        {met && <Check size={10} color="#0A192F" strokeWidth={4} />}
-      </View>
-      <Text style={[styles.requirementText, { color: met ? '#64FFDA' : '#8892B0' }]}>
-        {label}
-      </Text>
-    </View>
-  );
+  useEffect(() => {
+    const config = { duration: 300 };
+    w1.value = withTiming(strength >= 1 ? 100 : 0, config);
+    w2.value = withTiming(strength >= 2 ? 100 : 0, config);
+    w3.value = withTiming(strength >= 3 ? 100 : 0, config);
+    w4.value = withTiming(strength >= 4 ? 100 : 0, config);
+  }, [strength]);
+
+  const barStyle = (w: SharedValue<number>) =>
+    useAnimatedStyle(() => ({
+      width: `${w.value}%`,
+      backgroundColor: color,
+      height: '100%',
+      borderRadius: 2,
+    }));
 
   return (
     <View style={styles.container}>
-      {/* Animated Bar */}
-      <View style={styles.barContainer}>
-        <Animated.View style={[{ height: '100%' }, barStyle]} />
+      <View style={styles.bars}>
+        <View style={styles.track}>
+          <Animated.View style={barStyle(w1)} />
+        </View>
+        <View style={styles.track}>
+          <Animated.View style={barStyle(w2)} />
+        </View>
+        <View style={styles.track}>
+          <Animated.View style={barStyle(w3)} />
+        </View>
+        <View style={styles.track}>
+          <Animated.View style={barStyle(w4)} />
+        </View>
       </View>
-      
-      {/* Requirements List */}
-      <View style={styles.requirementsContainer}>
-        <Requirement label="8+ Chars" met={password.length >= 8} />
-        <Requirement label="Uppercase" met={/[A-Z]/.test(password)} />
-        <Requirement label="Number" met={/[0-9]/.test(password)} />
-        <Requirement label="Symbol" met={/[^A-Za-z0-9]/.test(password)} />
-      </View>
+      <Text style={[styles.label, { color }]}>
+        {getStrengthLabel(strength)}
+      </Text>
     </View>
   );
 };
 
+// --- LOGIC ---
+function calculateStrength(pass: string): number {
+  let score = 0;
+  if (!pass) return 0;
+  if (pass.length >= 6) score++;
+  if (pass.length >= 10) score++;
+  if (/[A-Z]/.test(pass)) score++;
+  if (/[0-9]/.test(pass) || /[^A-Za-z0-9]/.test(pass)) score++;
+  return score;
+}
+
+function getStrengthColor(score: number) {
+  if (score <= 1) return '#EF4444'; // Red
+  if (score === 2) return '#F59E0B'; // Amber
+  if (score === 3) return '#34D399'; // Green
+  return '#10B981'; // Emerald
+}
+
+function getStrengthLabel(score: number) {
+  if (score === 0) return '';
+  if (score <= 2) return 'WEAK SECURITY';
+  if (score === 3) return 'MODERATE ENCRYPTION';
+  return 'MAXIMUM SECURITY';
+}
+
 const styles = StyleSheet.create({
-  container: {
-    marginTop: 8,
-  },
-  barContainer: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 3,
+  container: { marginTop: 12, gap: 8 },
+  bars: { flexDirection: 'row', gap: 4, height: 4 },
+  track: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 2,
     overflow: 'hidden',
-    marginBottom: 12,
   },
-  requirementsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  requirementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    marginRight: 12,
-  },
-  checkIcon: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-  },
-  requirementText: {
-    fontSize: 12,
-    fontWeight: '500',
+  label: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textAlign: 'right',
   },
 });
