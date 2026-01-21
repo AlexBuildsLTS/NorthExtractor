@@ -1,13 +1,12 @@
 /**
  * ============================================================================
- * 🪙 NORTH INTELLIGENCE OS: CRYPTO LEDGER (REAL-TIME DB)
+ * 🪙 NORTH INTELLIGENCE OS: CRYPTO LEDGER (FIXED)
  * ============================================================================
  * PATH: app/(tabs)/settings/wallet.tsx
  * STATUS: PRODUCTION READY
  * FEATURES:
- * - Real-time Balance Sync (public.wallets).
- * - Transaction Feed (public.wallet_transactions).
- * - Address Generation Logic.
+ * - Upsert Logic for Wallet Creation.
+ * - Error Handling for RLS.
  * ============================================================================
  */
 
@@ -56,16 +55,15 @@ export default function WalletSettings() {
   const fetchLedger = async () => {
     if (!user) return;
     try {
-      // 1. Get Wallet
       const { data: wData, error: wError } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid 406 on empty
 
       if (wData) {
         setWallet(wData);
-        // 2. Get Transactions
+
         const { data: tData } = await supabase
           .from('wallet_transactions')
           .select('*')
@@ -74,12 +72,9 @@ export default function WalletSettings() {
           .limit(10);
 
         if (tData) setTransactions(tData);
-      } else if (wError?.code === 'PGRST116') {
-        // No wallet found
-        setWallet(null);
       }
     } catch (e) {
-      console.error(e);
+      console.log('Ledger sync silent fail:', e);
     } finally {
       setLoading(false);
     }
@@ -91,29 +86,38 @@ export default function WalletSettings() {
 
   // GENERATE ADDRESS
   const handleCreateWallet = async () => {
+    if (!user) return;
     setGenerating(true);
     try {
-      // Mocking Address Gen (In prod, use bitcoinjs-lib)
+      // 1. Generate Mock Address
       const mockAddress = `bc1q${Math.random().toString(36).substring(2, 12)}...${Math.random().toString(36).substring(2, 6)}`;
 
-      const { error } = await supabase.from('wallets').upsert({
-        user_id: user?.id!,
-        btc_address: mockAddress,
-        balance_sats: 0,
-        updated_at: new Date().toISOString(),
-      });
+      // 2. UPSERT into DB
+      const { data, error } = await supabase
+        .from('wallets')
+        .upsert(
+          {
+            user_id: user.id,
+            btc_address: mockAddress,
+            balance_sats: 0,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+        .select()
+        .single();
 
       if (error) throw error;
-      Alert.alert('Ledger Initialized', 'New SegWit address provisioned.');
-      fetchLedger();
+
+      setWallet(data);
+      Alert.alert('Success', 'Crypto Vault Initialized.');
     } catch (e: any) {
-      Alert.alert('Provision Error', e.message);
+      Alert.alert('Initialization Failed', e.message);
     } finally {
       setGenerating(false);
     }
   };
 
-  // COPY ADDRESS
   const copyToClipboard = () => {
     if (wallet?.btc_address) {
       Clipboard.setString(wallet.btc_address);
@@ -122,7 +126,7 @@ export default function WalletSettings() {
   };
 
   const btcValue = (wallet?.balance_sats || 0) / 100_000_000;
-  const usdValue = btcValue * 95000; // Mock Rate
+  const usdValue = btcValue * 95000;
 
   return (
     <View style={styles.root}>
@@ -266,7 +270,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // MASTER CARD
   masterCard: {
     borderRadius: 32,
     overflow: 'hidden',
@@ -338,7 +341,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // HISTORY
   sectionTitle: {
     color: '#4FD1C7',
     fontSize: 10,

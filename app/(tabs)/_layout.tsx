@@ -1,11 +1,10 @@
 /**
  * ============================================================================
- * 🧭 NORTH INTELLIGENCE OS: COMMAND NAVIGATION V15.5
+ * 🧭 NORTH INTELLIGENCE OS: COMMAND NAVIGATION (FINAL FIX)
  * ============================================================================
  * FIXES:
- * - BULK ACCESS: Added 'Bulk Dispatcher' to Sidebar and Mobile Bar.
- * - ICON SYNTHESIS: Assigned 'Layers' icon to the Batch Ignition unit.
- * - VISIBILITY: Ensured 1:1 parity between Desktop and Mobile routes.
+ * - GHOST TAB REMOVED: Explicitly hides 'settings/wallet' from the tab bar.
+ * - STRUCTURE: Keeps Bulk Dispatcher and all previous nodes intact.
  * ============================================================================
  */
 
@@ -18,7 +17,7 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { Tabs, Slot, useRouter, usePathname, Redirect } from 'expo-router';
+import { Tabs, Slot, useRouter, usePathname } from 'expo-router';
 import {
   LayoutDashboard,
   Bot,
@@ -34,20 +33,18 @@ import { useAuth } from '@/context/AuthContext';
 const DESKTOP_WIDTH = 1024;
 
 export default function AdaptiveLayout() {
-  const { user, logout, isLoading } = useAuth();
+  const { logout } = useAuth();
   const { width } = useWindowDimensions();
   const pathname = usePathname();
   const router = useRouter();
 
   const isDesktop = width >= DESKTOP_WIDTH;
 
-
-
   const navigationNodes = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/(tabs)/' },
     { label: 'Cloud Crawler', icon: Globe, path: '/(tabs)/create' },
     { label: 'Direct Scraper', icon: Cpu, path: '/(tabs)/scraper' },
-    { label: 'Bulk Dispatcher', icon: Layers, path: '/(tabs)/bulk-dispatcher' }, // ADDED NODE
+    { label: 'Bulk Dispatcher', icon: Layers, path: '/(tabs)/bulk-dispatcher' },
     { label: 'Logs', icon: Terminal, path: '/(tabs)/logs' },
     { label: 'AI', icon: Bot, path: '/(tabs)/ai-chat' },
   ];
@@ -145,12 +142,13 @@ export default function AdaptiveLayout() {
         options={{ tabBarIcon: ({ color }) => <Bot size={24} color={color} /> }}
       />
 
-      {/* SETTINGS HIDDEN FROM MOBILE TAB BAR */}
+      {/* --- HIDDEN SYSTEM ROUTES (NO GHOST TABS) --- */}
       <Tabs.Screen name="settings/index" options={{ href: null }} />
       <Tabs.Screen name="settings/profile" options={{ href: null }} />
       <Tabs.Screen name="settings/security" options={{ href: null }} />
       <Tabs.Screen name="settings/proxies" options={{ href: null }} />
       <Tabs.Screen name="settings/webhooks" options={{ href: null }} />
+      <Tabs.Screen name="settings/wallet" options={{ href: null }} />
     </Tabs>
   );
 }

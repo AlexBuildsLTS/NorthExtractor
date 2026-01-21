@@ -1,12 +1,10 @@
 /**
  * ============================================================================
- * ⚙️ NORTH INTELLIGENCE OS: SETTINGS HUB (ULTIMATE UI)
+ * ⚙️ NORTH INTELLIGENCE OS: SETTINGS HUB (FINAL CLEAN)
  * ============================================================================
  * PATH: app/(tabs)/settings/index.tsx
- * FEATURES:
- * - Flagship "Identity Card" Header (Redesigned).
- * - Direct Access to Crypto Ledger.
- * - Deep Glassmorphism & Neon Accents.
+ * STATUS: PRODUCTION READY
+ * FIX: Removed ghost tabs. Added correct navigation structure.
  * ============================================================================
  */
 
@@ -63,7 +61,7 @@ export default function SettingsIndex() {
         contentContainerStyle={styles.scrollArea}
         showsVerticalScrollIndicator={false}
       >
-        {/* --- 1. FLAGSHIP IDENTITY CARD (REDESIGNED) --- */}
+        {/* --- 1. IDENTITY CARD (FLAGSHIP UI) --- */}
         <Animated.View
           entering={FadeInDown.delay(100).springify()}
           style={styles.identityContainer}
@@ -227,7 +225,6 @@ export default function SettingsIndex() {
 
             <View style={styles.divider} />
 
-            {/* WALLET BUTTON */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => router.push('/(tabs)/settings/wallet')}
@@ -296,7 +293,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scrollArea: { padding: 24, paddingBottom: 100 },
 
-  // IDENTITY CARD (NEW DESIGN)
+  // IDENTITY CARD
   identityContainer: { marginBottom: 32 },
   identityCard: {
     padding: 0,
